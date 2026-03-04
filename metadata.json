@@ -1,0 +1,10 @@
+{
+  "name": "Remix: Remix: Uzbechka Delivery Original0000000000000000000000",
+  "description": "Premium oriental delivery system for food and goods with role-based access for Admins, Agents, Couriers, and Clients.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone",
+    "contacts"
+  ]
+}

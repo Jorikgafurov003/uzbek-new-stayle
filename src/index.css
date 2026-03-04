@@ -1,0 +1,32 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-uzum-primary: #7000ff;
+  --color-uzum-bg: #f2f4f7;
+  --color-uzum-text: #1f2026;
+  --color-uzum-muted: #8b8e99;
+  --color-gold: #D4AF37;
+  --color-gold-light: #F4D03F;
+  --color-gold-dark: #9A7D0A;
+  --color-beige: #FAF9F6;
+  --color-beige-dark: #F5F5DC;
+  --color-oriental-red: #8B0000;
+  
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-uzum-text;
+  }
+}
+
+.uzum-gradient {
+  background: linear-gradient(135deg, #7000ff 0%, #8e33ff 100%);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, #D4AF37 0%, #F4D03F 50%, #D4AF37 100%);
+}
+
