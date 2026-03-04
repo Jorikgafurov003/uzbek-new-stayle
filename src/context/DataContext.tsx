@@ -21,7 +21,6 @@ interface DataContextType {
   forecasts: ProfitForecast[];
   healthLogs: SystemHealthLog[];
   securityAlerts: SecurityAlert[];
-  commissions: { agent_id: number; percent: number }[];
   refreshData: () => Promise<void>;
   addProduct: (product: Partial<Product>) => Promise<void>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
@@ -69,7 +68,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [forecasts, setForecasts] = useState<ProfitForecast[]>([]);
   const [healthLogs, setHealthLogs] = useState<SystemHealthLog[]>([]);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
-  const [commissions, setCommissions] = useState<{ agent_id: number; percent: number }[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const { t, language } = useLanguage();
@@ -137,8 +135,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { name: 'forecasts', url: '/api/admin/profit-forecast' },
         { name: 'health', url: '/api/admin/system-health' },
         { name: 'security', url: '/api/admin/security-alerts' },
-        { name: 'topStats', url: '/api/admin/top-stats' },
-        { name: 'commissions', url: '/api/admin/commissions' }
+        { name: 'topStats', url: '/api/admin/top-stats' }
       ];
 
       const results = await Promise.all(
@@ -209,7 +206,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           case 'forecasts': setForecasts(res.data); break;
           case 'health': setHealthLogs(res.data); break;
           case 'security': setSecurityAlerts(res.data); break;
-          case 'commissions': setCommissions(res.data); break;
           case 'topStats': setStats(prev => prev ? { ...prev, ...res.data } : res.data); break;
         }
       });
@@ -447,7 +443,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{ 
       products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
-      insights, kpis, forecasts, healthLogs, securityAlerts, commissions,
+      insights, kpis, forecasts, healthLogs, securityAlerts,
       refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
       addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
       deployUpdate, setCommission, uploadProof, apiFetch

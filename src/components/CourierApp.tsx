@@ -16,7 +16,7 @@ import { courierIcon, storeIcon } from '../utils/MapIcons';
 const STORE_LOCATION = BUKHARA_CENTER;
 
 export const CourierApp: React.FC = () => {
-  const { orders, updateOrder, users, updateUserLocation, updateUser, speak, addDebt, products, isOnline, banners } = useData();
+  const { orders, updateOrder, users, updateUserLocation, updateUser, speak, addDebt, products, isOnline } = useData();
   const { logout, user: authUser } = useAuth();
   const { t } = useLanguage();
   
@@ -30,8 +30,6 @@ export const CourierApp: React.FC = () => {
   const [handoverPayment, setHandoverPayment] = useState<'cash' | 'card' | 'debt'>('cash');
   const [dueDate, setDueDate] = useState('');
   const [deliveryPhoto, setDeliveryPhoto] = useState<string | null>(null);
-  const [invoicePhoto, setInvoicePhoto] = useState<string | null>(null);
-  const [currentBanner, setCurrentBanner] = useState(0);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,20 +51,6 @@ export const CourierApp: React.FC = () => {
   };
 
   useEffect(() => {
-    // Request permissions
-    const requestPermissions = async () => {
-      try {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(() => {}, () => {});
-        }
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => {});
-        }
-        // Contacts permission is requested when used, but we can hint it
-      } catch (e) {}
-    };
-    requestPermissions();
-
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
@@ -78,15 +62,6 @@ export const CourierApp: React.FC = () => {
       return () => navigator.geolocation.clearWatch(watchId);
     }
   }, []);
-
-  useEffect(() => {
-    if (banners.length > 0) {
-      const timer = setInterval(() => {
-        setCurrentBanner(prev => (prev + 1) % banners.length);
-      }, 5000);
-      return () => clearInterval(timer);
-    }
-  }, [banners]);
 
   const myDeliveries = orders.filter(o => o.courierId === user?.id && (o.orderStatus === 'confirmed' || o.orderStatus === 'on_way'));
   const historyDeliveries = orders.filter(o => o.courierId === user?.id && o.orderStatus === 'delivered');
@@ -108,7 +83,7 @@ export const CourierApp: React.FC = () => {
     if (!selectedOrder) return;
     if (!deliveryPhoto) return alert('Пожалуйста, сделайте фотоотчет о доставке');
 
-    const updates: any = { orderStatus: 'delivered', deliveryPhoto, invoicePhoto };
+    const updates: any = { orderStatus: 'delivered', deliveryPhoto };
     
     if (handoverPayment === 'debt') {
       if (!dueDate) return alert('Пожалуйста, выберите срок оплаты');
@@ -151,26 +126,6 @@ export const CourierApp: React.FC = () => {
       </header>
 
       <main className="p-4 max-w-2xl mx-auto">
-        {/* Banners Carousel */}
-        {banners.filter(b => b.isActive).length > 0 && (
-          <div className="mb-6 relative h-32 rounded-3xl overflow-hidden shadow-sm border border-white/20">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentBanner}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0"
-              >
-                <img src={banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].imageUrl} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
-                  <h2 className="text-white text-sm font-bold leading-tight">{banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].title}</h2>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        )}
-
         <div className="space-y-4">
           {activeTab === 'warehouse' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
@@ -386,55 +341,28 @@ export const CourierApp: React.FC = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest ml-1">Фото доставки</label>
-                    <div className="relative">
-                      {deliveryPhoto ? (
-                        <div className="relative w-full h-32 rounded-2xl overflow-hidden border-2 border-uzum-primary">
-                          <img src={deliveryPhoto} className="w-full h-full object-cover" />
-                          <button onClick={() => setDeliveryPhoto(null)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full"><X size={16} /></button>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 cursor-pointer">
-                          <Plus size={24} className="text-stone-300 mb-1" />
-                          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Фото</p>
-                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setDeliveryPhoto(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }} />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest ml-1">Фото накладной</label>
-                    <div className="relative">
-                      {invoicePhoto ? (
-                        <div className="relative w-full h-32 rounded-2xl overflow-hidden border-2 border-uzum-primary">
-                          <img src={invoicePhoto} className="w-full h-full object-cover" />
-                          <button onClick={() => setInvoicePhoto(null)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full"><X size={16} /></button>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 cursor-pointer">
-                          <Plus size={24} className="text-stone-300 mb-1" />
-                          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Накладная</p>
-                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setInvoicePhoto(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }} />
-                        </label>
-                      )}
-                    </div>
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest ml-1">Фотоотчет доставки</label>
+                  <div className="relative">
+                    {deliveryPhoto ? (
+                      <div className="relative w-full h-40 rounded-2xl overflow-hidden border-2 border-uzum-primary">
+                        <img src={deliveryPhoto} className="w-full h-full object-cover" />
+                        <button onClick={() => setDeliveryPhoto(null)} className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full"><X size={16} /></button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-40 rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 cursor-pointer">
+                        <Plus size={32} className="text-stone-300 mb-2" />
+                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Сделать фото</p>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setDeliveryPhoto(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
+                      </label>
+                    )}
                   </div>
                 </div>
 

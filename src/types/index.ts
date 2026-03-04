@@ -69,7 +69,6 @@ export interface Order {
   latitude?: number;
   longitude?: number;
   deliveryPhoto?: string;
-  invoicePhoto?: string;
   createdAt: string;
   items: OrderItem[];
 }

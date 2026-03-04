@@ -59,21 +59,6 @@ export const ClientApp: React.FC = () => {
   };
 
   useEffect(() => {
-    // Request permissions
-    const requestPermissions = async () => {
-      try {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(() => {}, () => {});
-        }
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => {});
-        }
-      } catch (e) {}
-    };
-    requestPermissions();
-  }, []);
-
-  useEffect(() => {
     if (banners.length > 0) {
       const timer = setInterval(() => {
         setCurrentBanner(prev => (prev + 1) % banners.length);

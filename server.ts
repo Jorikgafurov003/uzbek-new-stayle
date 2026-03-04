@@ -112,7 +112,6 @@ try {
       latitude REAL,
       longitude REAL,
       deliveryPhoto TEXT,
-      invoicePhoto TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (clientId) REFERENCES users(id),
       FOREIGN KEY (agentId) REFERENCES users(id),
@@ -204,12 +203,6 @@ try {
       risk_score REAL,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS agent_commissions (
-      agent_id INTEGER PRIMARY KEY,
-      percent REAL DEFAULT 5,
-      FOREIGN KEY (agent_id) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS ratings (
@@ -447,16 +440,7 @@ async function startServer() {
       GROUP BY u.id ORDER BY count DESC LIMIT 1
     `).get();
 
-    const topSeller = db.prepare(`
-      SELECT p.id, p.name, p.image, SUM(oi.quantity) as count
-      FROM order_items oi
-      JOIN products p ON oi.productId = p.id
-      JOIN orders o ON oi.orderId = o.id
-      WHERE o.createdAt >= date('now', 'start of month')
-      GROUP BY p.id ORDER BY count DESC LIMIT 1
-    `).get();
-
-    res.json({ topAgent, topCourier, topClient, topSeller });
+    res.json({ topAgent, topCourier, topClient });
   });
 
   app.get("/api/admin/salary-report", (req, res) => {
@@ -522,48 +506,6 @@ async function startServer() {
   app.get("/api/settings", (req, res) => {
     const s = db.prepare("SELECT * FROM settings").all();
     res.json((s as any[]).reduce((a, c) => ({ ...a, [c.key]: c.value }), {}));
-  });
-
-  // Telegram API
-  app.post("/api/telegram/send", async (req, res) => {
-    const { message } = req.body;
-    const botToken = db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get()?.value;
-    const chatId = db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get()?.value;
-
-    if (!botToken || !chatId) {
-      return res.status(400).json({ error: "Telegram settings missing" });
-    }
-
-    try {
-      const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
-      });
-      const data = await response.json();
-      res.json(data);
-    } catch (e) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Invoice Upload
-  app.post("/api/orders/:id/invoice", upload.single('photo'), (req, res) => {
-    const imageUrl = `/uploads/proofs/${req.file?.filename}`;
-    db.prepare("UPDATE orders SET invoicePhoto = ? WHERE id = ?").run(imageUrl, req.params.id);
-    res.json({ success: true, imageUrl });
-  });
-
-  // Commissions
-  app.get("/api/admin/commissions", (req, res) => {
-    res.json(db.prepare("SELECT * FROM agent_commissions").all());
-  });
-
-  app.post("/api/admin/set-commission", (req, res) => {
-    const { agentId, percent } = req.body;
-    db.prepare("INSERT OR REPLACE INTO agent_commissions (agent_id, percent) VALUES (?, ?)").run(agentId, percent);
-    res.json({ success: true });
   });
 
   // Vite middleware
