@@ -14,47 +14,7 @@
         "lat": { "type": "number" },
         "lng": { "type": "number" },
         "lastSeen": { "type": "string", "format": "date-time" },
-        "agent_id": { "type": "string" },
-        "password": { "type": "string" }
-      },
-      "required": ["name", "phone", "role", "password"]
-    }
-  },
-  "sampleData": {
-    "User": {
-      "name": "Admin User",
-      "phone": "+998936584455",
-      "role": "admin",
-      "password": "1210999",
-      "carType": null,
-      "carPhoto": null,
-      "photo": null,
-      "lat": 41.3111,
-      "lng": 69.2797,
-      "lastSeen": "2026-03-05T15:57:00Z",
-      "agent_id": null
-    }
-  }
-}
-
-  },
-  "sampleData": {
-    "User": {
-      "name": "Admin User",
-      "phone": "+998936584455",
-      "role": "admin",
-      "password": "1210999",
-      "carType": null,
-      "carPhoto": null,
-      "photo": null,
-      "lat": 41.3111,
-      "lng": 69.2797,
-      "lastSeen": "2026-03-05T15:57:00Z",
-      "agent_id": null
-    }
-  }
-}
-
+        "agent_id": { "type": "string" }
       },
       "required": ["name", "phone", "role"]
     },
