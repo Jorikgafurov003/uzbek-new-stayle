@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 import { apiFetch } from '../utils/api';
+import { auth, db } from '../firebase';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged,
+  signOut
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
   login: (phone: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (name: string, phone: string, password: string, role?: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
@@ -17,12 +26,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('uzbechka_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = { id: firebaseUser.uid, ...userDoc.data() } as any;
+          setUser(userData);
+          localStorage.setItem('uzbechka_user', JSON.stringify(userData));
+        }
+      } else {
+        setUser(null);
+        localStorage.removeItem('uzbechka_user');
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  const loginWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const firebaseUser = result.user;
+    
+    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+    if (!userDoc.exists()) {
+      // Create a default profile for new Google users
+      const newProfile = {
+        name: firebaseUser.displayName || 'Google User',
+        phone: firebaseUser.phoneNumber || '',
+        role: firebaseUser.email === 'jorikgafurov003@gmail.com' ? 'admin' : 'client',
+        photo: firebaseUser.photoURL || '',
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+      setUser({ id: firebaseUser.uid, ...newProfile } as any);
+    } else {
+      setUser({ id: firebaseUser.uid, ...userDoc.data() } as any);
+    }
+  };
 
   const login = async (phone: string, password: string) => {
     const res = await apiFetch('/api/auth/login', {
@@ -48,13 +90,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('uzbechka_user', JSON.stringify(data));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await signOut(auth);
     setUser(null);
     localStorage.removeItem('uzbechka_user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

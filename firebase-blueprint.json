@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user (admin, agent, courier, client)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "agent", "courier", "client"] },
+        "carType": { "type": "string" },
+        "carPhoto": { "type": "string" },
+        "photo": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "agent_id": { "type": "string" }
+      },
+      "required": ["name", "phone", "role"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product item",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "discountPrice": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "image": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "stock": { "type": "integer" }
+      },
+      "required": ["name", "price"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Promotional banner",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "link": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["imageUrl"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "agentId": { "type": "string" },
+        "courierId": { "type": "string" },
+        "totalPrice": { "type": "number" },
+        "paymentType": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid"] },
+        "collectionStatus": { "type": "string", "enum": ["pending", "collected"] },
+        "orderStatus": { "type": "string", "enum": ["new", "confirmed", "on_way", "delivered", "cancelled"] },
+        "location": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "deliveryPhoto": { "type": "string" },
+        "invoicePhoto": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "totalPrice", "paymentType"]
+    },
+    "Debt": {
+      "title": "Debt",
+      "description": "Client debt",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "paid"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientId", "amount"]
+    },
+    "Salary": {
+      "title": "Salary",
+      "description": "Employee salary payment",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string" },
+        "period": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "type", "period"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Product categories"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Product catalog"
+    },
+    "/banners/{bannerId}": {
+      "schema": "Banner",
+      "description": "Marketing banners"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders"
+    },
+    "/debts/{debtId}": {
+      "schema": "Debt",
+      "description": "Client debts"
+    },
+    "/salaries/{salaryId}": {
+      "schema": "Salary",
+      "description": "Salary records"
+    },
+    "/settings/{settingKey}": {
+      "schema": { "type": "object", "properties": { "value": { "type": "string" } } },
+      "description": "System settings"
+    }
+  }
+}

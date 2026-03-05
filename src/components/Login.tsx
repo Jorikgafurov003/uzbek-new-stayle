@@ -12,7 +12,7 @@ export const Login: React.FC = () => {
   const [smsCode, setSmsCode] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,6 +134,20 @@ export const Login: React.FC = () => {
             {showSmsStep ? 'Подтвердить СМС' : isRegister ? t('createAccount') : t('signIn')}
           </button>
         </form>
+
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="h-[1px] bg-[#e2e5eb] flex-1"></div>
+          <span className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">Или войти через</span>
+          <div className="h-[1px] bg-[#e2e5eb] flex-1"></div>
+        </div>
+
+        <button
+          onClick={() => loginWithGoogle()}
+          className="w-full mt-4 flex items-center justify-center gap-3 bg-white border border-[#e2e5eb] p-4 rounded-2xl hover:bg-uzum-bg transition-all active:scale-95"
+        >
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+          <span className="text-sm font-bold text-uzum-muted">Google</span>
+        </button>
 
         <div className="mt-8 text-center">
           <button

@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: number | string;
   name: string;
   phone: string;
   role: 'admin' | 'agent' | 'courier' | 'client';
@@ -9,21 +9,21 @@ export interface User {
   lat?: number;
   lng?: number;
   lastSeen?: string;
-  agentId?: number;
+  agentId?: number | string;
   commission?: number;
 }
 
 export interface Category {
-  id: number;
+  id: number | string;
   name: string;
 }
 
 export interface Product {
-  id: number;
+  id: number | string;
   name: string;
   price: number;
   discountPrice?: number;
-  categoryId: number;
+  categoryId: number | string;
   categoryName?: string;
   image: string;
   videoUrl?: string;
@@ -32,7 +32,7 @@ export interface Product {
 }
 
 export interface Banner {
-  id: number;
+  id: number | string;
   title: string;
   imageUrl: string;
   videoUrl?: string;
@@ -41,22 +41,22 @@ export interface Banner {
 }
 
 export interface OrderItem {
-  id: number;
-  orderId: number;
-  productId: number;
+  id: number | string;
+  orderId: number | string;
+  productId: number | string;
   productName: string;
   quantity: number;
   price: number;
 }
 
 export interface Order {
-  id: number;
-  clientId: number;
+  id: number | string;
+  clientId: number | string;
   clientName: string;
   clientPhone?: string;
-  agentId?: number;
+  agentId?: number | string;
   agentName?: string;
-  courierId?: number;
+  courierId?: number | string;
   courierName?: string;
   courierCarType?: string;
   courierCarPhoto?: string;
@@ -69,6 +69,7 @@ export interface Order {
   latitude?: number;
   longitude?: number;
   deliveryPhoto?: string;
+  invoicePhoto?: string;
   createdAt: string;
   items: OrderItem[];
 }
@@ -84,11 +85,11 @@ export interface Stats {
 }
 
 export interface Debt {
-  id: number;
-  clientId: number;
+  id: number | string;
+  clientId: number | string;
   clientName: string;
   clientPhone: string;
-  orderId?: number;
+  orderId?: number | string;
   amount: number;
   dueDate?: string;
   status: 'pending' | 'paid';

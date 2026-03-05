@@ -112,6 +112,7 @@ try {
       latitude REAL,
       longitude REAL,
       deliveryPhoto TEXT,
+      invoicePhoto TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (clientId) REFERENCES users(id),
       FOREIGN KEY (agentId) REFERENCES users(id),
@@ -205,6 +206,12 @@ try {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS agent_commissions (
+      agent_id INTEGER PRIMARY KEY,
+      percent REAL DEFAULT 5,
+      FOREIGN KEY (agent_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS ratings (
       user_id INTEGER PRIMARY KEY,
       role TEXT,
@@ -218,6 +225,25 @@ try {
       agent_id INTEGER PRIMARY KEY,
       percent REAL DEFAULT 5,
       FOREIGN KEY (agent_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_salary_config (
+      userId INTEGER PRIMARY KEY,
+      baseSalary REAL DEFAULT 0,
+      commissionPercent REAL DEFAULT 0,
+      workingDays INTEGER DEFAULT 22,
+      FOREIGN KEY (userId) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS salaries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL,
+      period TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS courier_locations (
@@ -440,7 +466,16 @@ async function startServer() {
       GROUP BY u.id ORDER BY count DESC LIMIT 1
     `).get();
 
-    res.json({ topAgent, topCourier, topClient });
+    const topSeller = db.prepare(`
+      SELECT p.id, p.name, p.image, SUM(oi.quantity) as count
+      FROM order_items oi
+      JOIN products p ON oi.productId = p.id
+      JOIN orders o ON oi.orderId = o.id
+      WHERE o.createdAt >= date('now', 'start of month')
+      GROUP BY p.id ORDER BY count DESC LIMIT 1
+    `).get();
+
+    res.json({ topAgent, topCourier, topClient, topSeller });
   });
 
   app.get("/api/admin/salary-report", (req, res) => {
@@ -471,7 +506,104 @@ async function startServer() {
   });
 
   // Standard CRUD (truncated for brevity, but keeping core logic)
+  app.delete("/api/users/:id", (req, res) => {
+    const userId = req.params.id;
+    try {
+      db.transaction(() => {
+        // Delete related records first to avoid foreign key constraints
+        db.prepare("DELETE FROM salaries WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM user_salary_config WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM agent_commission WHERE agent_id = ?").run(userId);
+        db.prepare("DELETE FROM location_history WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM security_alerts WHERE user_id = ?").run(userId);
+        db.prepare("DELETE FROM employee_kpi WHERE user_id = ?").run(userId);
+        db.prepare("DELETE FROM ratings WHERE user_id = ?").run(userId);
+        db.prepare("DELETE FROM courier_locations WHERE courier_id = ?").run(userId);
+        
+        // Update orders to remove references
+        db.prepare("UPDATE orders SET agentId = NULL WHERE agentId = ?").run(userId);
+        db.prepare("UPDATE orders SET courierId = NULL WHERE courierId = ?").run(userId);
+        
+        // Finally delete the user
+        db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+      })();
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  app.put("/api/users/:id", (req, res) => {
+    const updates = Object.entries(req.body).map(([k, v]) => `${k} = ?`).join(", ");
+    db.prepare(`UPDATE users SET ${updates} WHERE id = ?`).run(...Object.values(req.body), req.params.id);
+    res.json({ success: true });
+  });
+
+  app.post("/api/categories", (req, res) => {
+    const { name } = req.body;
+    const result = db.prepare("INSERT INTO categories (name) VALUES (?)").run(name);
+    res.json({ id: result.lastInsertRowid, name });
+  });
+
+  app.delete("/api/categories/:id", (req, res) => {
+    db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.get("/api/admin/salaries", (req, res) => {
+    const salaries = db.prepare(`
+      SELECT s.*, u.name as userName, u.role
+      FROM salaries s
+      JOIN users u ON s.userId = u.id
+      ORDER BY s.createdAt DESC
+    `).all();
+    res.json(salaries);
+  });
+
+  app.post("/api/admin/salaries", (req, res) => {
+    const { userId, amount, type, period } = req.body;
+    const result = db.prepare("INSERT INTO salaries (userId, amount, type, period) VALUES (?, ?, ?, ?)").run(userId, amount, type, period);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.get("/api/admin/salary-configs", (req, res) => {
+    res.json(db.prepare("SELECT * FROM user_salary_config").all());
+  });
+
+  app.post("/api/admin/salary-configs", (req, res) => {
+    const { userId, baseSalary, commissionPercent, workingDays } = req.body;
+    db.prepare(`
+      INSERT INTO user_salary_config (userId, baseSalary, commissionPercent, workingDays)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(userId) DO UPDATE SET
+        baseSalary = excluded.baseSalary,
+        commissionPercent = excluded.commissionPercent,
+        workingDays = excluded.workingDays
+    `).run(userId, baseSalary, commissionPercent, workingDays);
+    res.json({ success: true });
+  });
+
   app.get("/api/products", (req, res) => res.json(db.prepare("SELECT p.*, c.name as categoryName FROM products p LEFT JOIN categories c ON p.categoryId = c.id").all()));
+  app.post("/api/products", (req, res) => {
+    const { name, price, discountPrice, categoryId, image, videoUrl, description, stock } = req.body;
+    const result = db.prepare("INSERT INTO products (name, price, discountPrice, categoryId, image, videoUrl, description, stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+      name, price, discountPrice || null, categoryId || null, image || null, videoUrl || null, description || null, stock || 0
+    );
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.put("/api/products/:id", (req, res) => {
+    const updates = Object.entries(req.body).map(([k, v]) => `${k} = ?`).join(", ");
+    db.prepare(`UPDATE products SET ${updates} WHERE id = ?`).run(...Object.values(req.body), req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/products/:id", (req, res) => {
+    db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
   app.get("/api/orders", (req, res) => {
     const orders = db.prepare(`
       SELECT o.*, u.name as clientName, u.phone as clientPhone, a.name as agentName, cr.name as courierName
@@ -506,6 +638,62 @@ async function startServer() {
   app.get("/api/settings", (req, res) => {
     const s = db.prepare("SELECT * FROM settings").all();
     res.json((s as any[]).reduce((a, c) => ({ ...a, [c.key]: c.value }), {}));
+  });
+
+  app.post("/api/settings", (req, res) => {
+    const updates = req.body;
+    try {
+      db.transaction(() => {
+        for (const [key, value] of Object.entries(updates)) {
+          db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
+        }
+      })();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Telegram API
+  app.post("/api/telegram/send", async (req, res) => {
+    const { message } = req.body;
+    const botToken = db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get()?.value;
+    const chatId = db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get()?.value;
+
+    if (!botToken || !chatId) {
+      return res.status(400).json({ error: "Telegram settings missing" });
+    }
+
+    try {
+      const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
+      });
+      const data = await response.json();
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Invoice Upload
+  app.post("/api/orders/:id/invoice", upload.single('photo'), (req, res) => {
+    const imageUrl = `/uploads/proofs/${req.file?.filename}`;
+    db.prepare("UPDATE orders SET invoicePhoto = ? WHERE id = ?").run(imageUrl, req.params.id);
+    res.json({ success: true, imageUrl });
+  });
+
+  // Commissions
+  app.get("/api/admin/commissions", (req, res) => {
+    res.json(db.prepare("SELECT * FROM agent_commissions").all());
+  });
+
+  app.post("/api/admin/set-commission", (req, res) => {
+    const { agentId, percent } = req.body;
+    db.prepare("INSERT OR REPLACE INTO agent_commissions (agent_id, percent) VALUES (?, ?)").run(agentId, percent);
+    res.json({ success: true });
   });
 
   // Vite middleware

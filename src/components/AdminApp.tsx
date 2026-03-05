@@ -4,12 +4,17 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   LayoutDashboard, Package, ShoppingBag, Users, LogOut, 
-  TrendingUp, CheckCircle, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle
+  TrendingUp, CheckCircle, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+
+// Set Mapbox token - user should replace this with their own
+mapboxgl.accessToken = 'pk.eyJ1IjoiZGV2ZWxvcGVyLWFpIiwiYSI6ImNsdHh6eHh6eDAxMnIya216eHh6eHh6eHgifQ.placeholder';
 
 // Helper to update map center
 const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
@@ -27,22 +32,174 @@ import { apiFetch } from '../utils/api';
 import { BUKHARA_CENTER } from '../context/DataContext';
 import { courierIcon, agentIcon, storeIcon } from '../utils/MapIcons';
 
+// Mapbox Tracker Component
+const MapboxTracker: React.FC<{ users: any[], orders: any[], settings: any, t: any }> = ({ users, orders, settings, t }) => {
+  const mapContainer = React.useRef<HTMLDivElement>(null);
+  const map = React.useRef<mapboxgl.Map | null>(null);
+  const markers = React.useRef<{ [key: string]: mapboxgl.Marker }>({});
+
+  React.useEffect(() => {
+    if (!mapContainer.current) return;
+
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [BUKHARA_CENTER[1], BUKHARA_CENTER[0]], // Mapbox uses [lng, lat]
+      zoom: 13,
+      pitch: 45,
+      bearing: -17.6,
+      antialias: true
+    });
+
+    map.current.addControl(new mapboxgl.NavigationControl());
+
+    map.current.on('load', () => {
+      if (!map.current) return;
+      
+      // Add 3D buildings layer
+      const layers = map.current.getStyle().layers;
+      const labelLayerId = layers?.find(
+        (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
+      )?.id;
+
+      map.current.addLayer(
+        {
+          'id': 'add-3d-buildings',
+          'source': 'composite',
+          'source-layer': 'building',
+          'filter': ['==', 'extrude', 'true'],
+          'type': 'fill-extrusion',
+          'minzoom': 15,
+          'paint': {
+            'fill-extrusion-color': '#aaa',
+            'fill-extrusion-height': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              15,
+              0,
+              15.05,
+              ['get', 'height']
+            ],
+            'fill-extrusion-base': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              15,
+              0,
+              15.05,
+              ['get', 'min_height']
+            ],
+            'fill-extrusion-opacity': 0.6
+          }
+        },
+        labelLayerId
+      );
+    });
+
+    return () => {
+      map.current?.remove();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!map.current) return;
+
+    // Update markers
+    const activeUsers = users.filter(u => (u.role === 'agent' || u.role === 'courier') && u.lat != null && u.lng != null);
+    
+    // Remove old markers
+    Object.keys(markers.current).forEach(id => {
+      if (!activeUsers.find(u => u.id.toString() === id)) {
+        markers.current[id].remove();
+        delete markers.current[id];
+      }
+    });
+
+    // Add/Update markers
+    activeUsers.forEach(u => {
+      const id = u.id.toString();
+      const isOnline = u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 60000);
+      
+      if (markers.current[id]) {
+        markers.current[id].setLngLat([u.lng, u.lat]);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'marker';
+        el.style.backgroundImage = `url(${u.photo || 'https://picsum.photos/seed/user/50/50'})`;
+        el.style.width = '40px';
+        el.style.height = '40px';
+        el.style.backgroundSize = 'cover';
+        el.style.borderRadius = '50%';
+        el.style.border = `3px solid ${u.role === 'agent' ? '#3b82f6' : '#f97316'}`;
+        el.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+        
+        const statusDot = document.createElement('div');
+        statusDot.style.width = '12px';
+        statusDot.style.height = '12px';
+        statusDot.style.borderRadius = '50%';
+        statusDot.style.backgroundColor = isOnline ? '#22c55e' : '#94a3b8';
+        statusDot.style.position = 'absolute';
+        statusDot.style.bottom = '0';
+        statusDot.style.right = '0';
+        statusDot.style.border = '2px solid white';
+        el.appendChild(statusDot);
+
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([u.lng, u.lat])
+          .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(
+            `<div class="p-2">
+              <h4 class="font-bold">${u.name}</h4>
+              <p class="text-xs">${u.role} • ${isOnline ? 'Online' : 'Offline'}</p>
+              <p class="text-xs">${u.phone}</p>
+            </div>`
+          ))
+          .addTo(map.current!);
+        
+        markers.current[id] = marker;
+      }
+    });
+  }, [users]);
+
+  return <div ref={mapContainer} className="w-full h-full rounded-3xl overflow-hidden" />;
+};
+
 export const AdminApp: React.FC = () => {
   const { 
     products, categories, orders, stats, users, banners, settings, debts, systemErrors,
-    insights, kpis, forecasts, healthLogs, securityAlerts,
-    addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, updateOrder, deleteOrder, deleteUser, updateUser, addBanner, updateBanner, deleteBanner, updateSettings, updateDebt, speak,
-    deployUpdate, setCommission, fixSystemError, apiFetch, refreshData
+    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries,
+    addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, updateOrder, deleteOrder, deleteUser, updateUser, addUser, addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, speak,
+    deployUpdate, setCommission, updateSalaryConfig, createSalary, fixSystemError, apiFetch, refreshData
   } = useData();
   const { logout, user: currentUser } = useAuth();
   const { register } = useAuth();
   const { t, language, setLanguage } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'kpi' | 'forecast' | 'health' | 'security' | 'deploy'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries'>('dashboard');
+  const [telegramMessage, setTelegramMessage] = useState('');
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+  const [topStats, setTopStats] = useState<any>(null);
+
+  const fetchTopStats = async () => {
+    try {
+      const res = await apiFetch('/api/admin/top-stats');
+      const data = await res.json();
+      setTopStats(data);
+    } catch (e) {
+      console.error('Error fetching top stats:', e);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'dashboard') {
+      fetchTopStats();
+    }
+  }, [activeTab]);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddBanner, setShowAddBanner] = useState(false);
+  const [showAddSalary, setShowAddSalary] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [selectedOrderForMap, setSelectedOrderForMap] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -153,124 +310,272 @@ export const AdminApp: React.FC = () => {
       {/* Content */}
       <main className="flex-1 p-4 pb-24 overflow-y-auto">
         {activeTab === 'dashboard' && stats && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-            {/* Miniature Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e2e5eb] flex items-center gap-3">
-                <div className="p-2 bg-uzum-primary/10 rounded-xl text-uzum-primary"><TrendingUp size={18} /></div>
-                <div>
-                  <p className="text-uzum-muted text-[10px] font-bold uppercase leading-none mb-1">{t('revenue')}</p>
-                  <h3 className="text-sm font-bold truncate">{(stats?.revenue || 0).toLocaleString()}</h3>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            {/* Bento Grid Header Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {[
+                { label: t('revenue'), value: (stats?.revenue || 0).toLocaleString(), icon: <TrendingUp size={18} />, color: 'bg-uzum-primary/10 text-uzum-primary', suffix: ' UZS' },
+                { label: t('orders'), value: stats.orders, icon: <ShoppingBag size={18} />, color: 'bg-blue-50 text-blue-500' },
+                { label: t('users'), value: stats.users, icon: <Users size={18} />, color: 'bg-purple-50 text-purple-500' },
+                { label: t('products'), value: products.length, icon: <Package size={18} />, color: 'bg-orange-50 text-orange-500' },
+                { label: t('debts'), value: debts.filter(d => d.status === 'pending').length, icon: <CreditCard size={18} />, color: 'bg-red-50 text-red-500' },
+                { label: 'System Health', value: healthLogs.some(l => l.status === 'error') ? 'Warning' : 'Healthy', icon: <CheckCircle size={18} />, color: healthLogs.some(l => l.status === 'error') ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500' },
+              ].map((item, i) => (
+                <div key={i} className="bg-white p-4 rounded-3xl shadow-sm border border-stone-100 flex flex-col justify-between h-32 hover:shadow-md transition-all">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${item.color}`}>
+                    {item.icon}
+                  </div>
+                  <div>
+                    <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest mb-1">{item.label}</p>
+                    <h3 className="text-lg font-black text-stone-800 truncate">{item.value}{item.suffix}</h3>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* AI Director Recommendation - Spans 8 */}
+              <div className="lg:col-span-8 space-y-6">
+                {insights.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gold/5 border border-gold/10 p-8 rounded-[3rem] flex flex-col md:flex-row items-start md:items-center gap-8 relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gold/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+                    <div className="p-6 bg-gold text-white rounded-[2rem] shadow-xl shadow-gold/20 relative z-10">
+                      <Bot size={40} />
+                    </div>
+                    <div className="flex-1 relative z-10">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-[10px] font-black text-gold-dark uppercase tracking-[0.2em]">AI Business Director</span>
+                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                          insights[0].risk_level === 'high' ? 'bg-red-500 text-white' :
+                          insights[0].risk_level === 'medium' ? 'bg-orange-500 text-white' :
+                          'bg-green-500 text-white'
+                        }`}>
+                          {insights[0].risk_level} Risk
+                        </span>
+                      </div>
+                      <h3 className="text-2xl font-black text-stone-800 mb-2 leading-tight">{insights[0].summary}</h3>
+                      <p className="text-stone-600 leading-relaxed font-medium">{insights[0].recommendation}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Forecast Chart - Spans 8 */}
+                <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-stone-100">
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-1">AI Profit Forecast</h4>
+                      <p className="text-xl font-black text-stone-800">Next 30 Days</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-gold"></div>
+                        <span className="text-[10px] font-bold text-stone-400 uppercase">Revenue</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-stone-800"></div>
+                        <span className="text-[10px] font-bold text-stone-400 uppercase">Orders</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={forecasts}>
+                        <XAxis dataKey="date" fontSize={10} axisLine={false} tickLine={false} />
+                        <YAxis fontSize={10} axisLine={false} tickLine={false} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}
+                        />
+                        <Bar dataKey="expected_revenue" fill="#D4AF37" radius={[6, 6, 0, 0]} name="Expected Revenue" />
+                        <Bar dataKey="expected_orders" fill="#1c1917" radius={[6, 6, 0, 0]} name="Expected Orders" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e2e5eb] flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-xl text-blue-500"><ShoppingBag size={18} /></div>
-                <div>
-                  <p className="text-uzum-muted text-[10px] font-bold uppercase leading-none mb-1">{t('orders')}</p>
-                  <h3 className="text-sm font-bold">{stats.orders}</h3>
+
+              {/* Sidebar Bento Items - Spans 4 */}
+              <div className="lg:col-span-4 space-y-6">
+                {/* Sales by Category Pie */}
+                <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-stone-100">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-6">Sales by Category</h4>
+                  <div className="h-48 relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={stats.salesByCategory}
+                          innerRadius={50}
+                          outerRadius={70}
+                          paddingAngle={8}
+                          dataKey="value"
+                        >
+                          {stats.salesByCategory.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-[10px] font-black text-stone-400 uppercase">Total</span>
+                      <span className="text-lg font-black text-stone-800">{stats.salesByCategory.length}</span>
+                    </div>
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 gap-2">
+                    {stats.salesByCategory.slice(0, 4).map((cat, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                        <span className="text-[10px] font-bold text-stone-500 truncate">{cat.name}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e2e5eb] flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-xl text-purple-500"><Users size={18} /></div>
-                <div>
-                  <p className="text-uzum-muted text-[10px] font-bold uppercase leading-none mb-1">{t('users')}</p>
-                  <h3 className="text-sm font-bold">{stats.users}</h3>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e2e5eb] flex items-center gap-3">
-                <div className="p-2 bg-orange-50 rounded-xl text-orange-500"><Package size={18} /></div>
-                <div>
-                  <p className="text-uzum-muted text-[10px] font-bold uppercase leading-none mb-1">{t('products')}</p>
-                  <h3 className="text-sm font-bold">{products.length}</h3>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e2e5eb] flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl overflow-hidden border border-stone-100 shadow-sm">
-                  <img src="https://picsum.photos/seed/debt-card/100/100" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </div>
-                <div>
-                  <p className="text-uzum-muted text-[10px] font-bold uppercase leading-none mb-1">{t('debts')}</p>
-                  <h3 className="text-sm font-bold">{debts.filter(d => d.status === 'pending').length}</h3>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e2e5eb] flex items-center gap-3 cursor-pointer hover:border-uzum-primary transition-all" onClick={() => setActiveTab('ai')}>
-                <div className="w-10 h-10 rounded-xl overflow-hidden border border-stone-100 shadow-sm">
-                  <img src="https://picsum.photos/seed/ai-brain/100/100" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                </div>
-                <div>
-                  <p className="text-uzum-muted text-[10px] font-bold uppercase leading-none mb-1">AI Director</p>
-                  <h3 className="text-sm font-bold text-gold">Insights</h3>
+
+                {/* System Status Summary */}
+                <div className="bg-stone-900 p-8 rounded-[3rem] shadow-xl text-white relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                    <div className="absolute top-10 left-10 w-20 h-20 bg-white rounded-full blur-3xl"></div>
+                    <div className="absolute bottom-10 right-10 w-20 h-20 bg-gold rounded-full blur-3xl"></div>
+                  </div>
+                  <h4 className="text-[10px] font-black text-stone-500 uppercase tracking-[0.2em] mb-6 relative z-10">System Health</h4>
+                  <div className="space-y-4 relative z-10">
+                    {healthLogs.slice(0, 3).map((log, i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <div className={`w-2 h-2 rounded-full ${log.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold truncate">{log.component}</p>
+                          <p className="text-[9px] text-stone-500 uppercase tracking-widest">{log.status === 'ok' ? 'Running' : 'Issue'}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={() => setActiveTab('health' as any)} className="w-full mt-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10">
+                      View Full Logs
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* AI Director Recommendation Banner */}
-            {insights.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-gold/10 border border-gold/20 p-6 rounded-[2.5rem] flex items-center gap-6"
-              >
-                <div className="p-4 bg-gold text-white rounded-3xl shadow-lg shadow-gold/20">
-                  <Bot size={32} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black text-gold-dark uppercase tracking-widest">AI Business Director Recommendation</span>
-                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
-                      insights[0].risk_level === 'high' ? 'bg-red-500 text-white' :
-                      insights[0].risk_level === 'medium' ? 'bg-orange-500 text-white' :
-                      'bg-green-500 text-white'
-                    }`}>
-                      {insights[0].risk_level} Risk
-                    </span>
+            {/* Row 3: KPI Leaderboard & Recent Activity */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Top Performers - Spans 4 */}
+              <div className="lg:col-span-4 space-y-6">
+                <div className="bg-white p-8 rounded-[3.5rem] shadow-sm border border-stone-100">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-6">Top Performers</h4>
+                  <div className="space-y-6">
+                    {topStats?.topAgent && (
+                      <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-3xl border border-blue-100/50">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-white shadow-sm">
+                          <img src={topStats.topAgent.photo || 'https://picsum.photos/seed/agent/50/50'} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Top Agent</p>
+                          <p className="text-sm font-bold text-stone-800">{topStats.topAgent.name}</p>
+                          <p className="text-[10px] text-stone-400 font-bold">{topStats.topAgent.count} orders</p>
+                        </div>
+                      </div>
+                    )}
+                    {topStats?.topCourier && (
+                      <div className="flex items-center gap-4 p-4 bg-orange-50 rounded-3xl border border-orange-100/50">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-white shadow-sm">
+                          <img src={topStats.topCourier.photo || 'https://picsum.photos/seed/courier/50/50'} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Top Courier</p>
+                          <p className="text-sm font-bold text-stone-800">{topStats.topCourier.name}</p>
+                          <p className="text-[10px] text-stone-400 font-bold">{topStats.topCourier.count} deliveries</p>
+                        </div>
+                      </div>
+                    )}
+                    {topStats?.topSeller && (
+                      <div className="flex items-center gap-4 p-4 bg-gold/10 rounded-3xl border border-gold/20">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-white shadow-sm">
+                          <img src={topStats.topSeller.image || 'https://picsum.photos/seed/product/50/50'} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] font-black text-gold-dark uppercase tracking-widest">Top Seller</p>
+                          <p className="text-sm font-bold text-stone-800 truncate">{topStats.topSeller.name}</p>
+                          <p className="text-[10px] text-stone-400 font-bold">{topStats.topSeller.count} sold</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <h3 className="text-lg font-bold text-stone-800 mb-1">{insights[0].summary}</h3>
-                  <p className="text-sm text-stone-600 leading-relaxed">{insights[0].recommendation}</p>
                 </div>
-              </motion.div>
-            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Compact Chart */}
-              <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 lg:col-span-1">
-                <h4 className="text-xs font-bold text-stone-400 uppercase mb-4">Sales by Category</h4>
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={stats.salesByCategory}
-                        innerRadius={35}
-                        outerRadius={50}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {stats.salesByCategory.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="bg-uzum-primary p-8 rounded-[3.5rem] text-white shadow-xl relative overflow-hidden group cursor-pointer" onClick={() => setActiveTab('telegram')}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:scale-150 transition-all duration-700" />
+                  <Send size={32} className="mb-4 text-white/50" />
+                  <h3 className="text-xl font-black mb-2">Telegram Ads</h3>
+                  <p className="text-xs text-white/70 mb-6 font-medium">Publish new advertisements and promotions to your Telegram channel instantly.</p>
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                    Open Publisher <Play size={10} />
+                  </div>
                 </div>
               </div>
 
-              {/* Compact Activity List */}
-              <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 lg:col-span-2">
-                <h4 className="text-xs font-bold text-stone-400 uppercase mb-4">Recent Activity</h4>
-                <div className="space-y-3">
-                  {orders.slice(0, 4).map(order => (
-                    <div key={order.id} className="flex items-center gap-3 pb-2 border-b border-stone-50 last:border-0">
-                      <div className="w-8 h-8 bg-stone-50 rounded-lg flex items-center justify-center text-stone-400">
-                        <ShoppingBag size={14} />
+              {/* KPI Leaderboard - Spans 8 */}
+              <div className="lg:col-span-8 bg-white p-8 rounded-[3.5rem] shadow-sm border border-stone-100">
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Performance Leaderboard</h4>
+                    <p className="text-xl font-black text-stone-800">Top Employees</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="p-2 bg-stone-50 rounded-xl text-stone-400"><Users size={18} /></div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {['agent', 'courier'].map(role => (
+                    <div key={role} className="space-y-4">
+                      <h5 className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2">{role}s</h5>
+                      <div className="space-y-3">
+                        {kpis.filter(k => k.role === role).slice(0, 3).map((kpi, i) => {
+                          const u = users.find(user => user.id === kpi.user_id);
+                          return (
+                            <div key={i} className="flex items-center gap-4 p-3 hover:bg-stone-50 rounded-[1.5rem] transition-all group">
+                              <div className="w-12 h-12 rounded-2xl bg-stone-100 overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
+                                {u?.photo ? <img src={u.photo} className="w-full h-full object-cover" /> : <User size={20} className="m-auto mt-3 text-stone-300" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-stone-800 truncate">{u?.name || 'Unknown'}</p>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    kpi.level === 'platinum' ? 'bg-blue-500 text-white' :
+                                    kpi.level === 'gold' ? 'bg-gold text-white' :
+                                    kpi.level === 'silver' ? 'bg-stone-400 text-white' :
+                                    'bg-orange-400 text-white'
+                                  }`}>{kpi.level}</span>
+                                  <span className="text-[10px] text-stone-400 font-bold">Score: {kpi.score}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent Activity - Spans 5 */}
+              <div className="lg:col-span-5 bg-white p-8 rounded-[3.5rem] shadow-sm border border-stone-100">
+                <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-8">Recent Orders</h4>
+                <div className="space-y-5">
+                  {orders.slice(0, 5).map(order => (
+                    <div key={order.id} className="flex items-center gap-4 group">
+                      <div className="w-12 h-12 bg-stone-50 rounded-2xl flex items-center justify-center text-stone-400 group-hover:bg-gold/10 group-hover:text-gold transition-all">
+                        <ShoppingBag size={20} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold truncate">#{order.id} - {order.clientName}</p>
-                        <p className="text-[10px] text-stone-400">{new Date(order.createdAt).toLocaleTimeString()}</p>
+                        <p className="text-sm font-bold text-stone-800 truncate">#{order.id} — {order.clientName}</p>
+                        <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-gold-dark">{(order.totalPrice || 0).toLocaleString()} UZS</p>
-                        <span className={`text-[8px] font-bold uppercase px-1 rounded ${
+                        <p className="text-sm font-black text-gold-dark">{(order.totalPrice || 0).toLocaleString()} UZS</p>
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
                           order.orderStatus === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-gold/10 text-gold-dark'
                         }`}>
                           {order.orderStatus}
@@ -282,20 +587,16 @@ export const AdminApp: React.FC = () => {
               </div>
             </div>
 
-            {/* Top Products Report */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest">Топ товары по продажам</h4>
-                  <div className="p-2 bg-gold/10 text-gold rounded-xl">
-                    <TrendingUp size={16} />
-                  </div>
-                </div>
-                <div className="space-y-4">
+            {/* Row 4: Top Products & System Errors */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Top Products - Spans 6 */}
+              <div className="lg:col-span-6 bg-white p-8 rounded-[3.5rem] shadow-sm border border-stone-100">
+                <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em] mb-8">Top Selling Products</h4>
+                <div className="space-y-6">
                   {topProducts.map((product, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
-                        index === 0 ? 'bg-gold text-white' : 
+                    <div key={index} className="flex items-center gap-5">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm ${
+                        index === 0 ? 'bg-gold text-white shadow-lg shadow-gold/20' : 
                         index === 1 ? 'bg-stone-200 text-stone-600' : 
                         index === 2 ? 'bg-orange-100 text-orange-600' : 
                         'bg-stone-50 text-stone-400'
@@ -304,11 +605,7 @@ export const AdminApp: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-bold text-stone-800">{product.name}</p>
-                        <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">{product.count} шт. продано</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-gold-dark">{(product.revenue || 0).toLocaleString()} UZS</p>
-                        <div className="w-24 h-1.5 bg-stone-100 rounded-full mt-1 overflow-hidden">
+                        <div className="w-full h-1.5 bg-stone-50 rounded-full mt-2 overflow-hidden">
                           <motion.div 
                             initial={{ width: 0 }}
                             animate={{ width: `${(product.revenue / topProducts[0].revenue) * 100}%` }}
@@ -316,33 +613,52 @@ export const AdminApp: React.FC = () => {
                           />
                         </div>
                       </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-stone-800">{(product.revenue || 0).toLocaleString()}</p>
+                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{product.count} Sold</p>
+                      </div>
                     </div>
                   ))}
-                  {topProducts.length === 0 && (
-                    <div className="text-center py-8 text-stone-400 italic text-sm">Нет данных о продажах</div>
-                  )}
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest">Продажи по категориям</h4>
-                  <div className="p-2 bg-blue-50 text-blue-500 rounded-xl">
-                    <List size={16} />
-                  </div>
+              {/* Critical Errors - Spans 6 */}
+              <div className="lg:col-span-6 bg-white p-8 rounded-[3.5rem] shadow-sm border border-stone-100">
+                <div className="flex justify-between items-center mb-8">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-[0.2em]">System Monitoring</h4>
+                  <span className="text-[10px] font-black text-red-500 bg-red-50 px-3 py-1 rounded-full uppercase tracking-widest">
+                    {systemErrors.filter(e => !e.fixed).length} Critical Errors
+                  </span>
                 </div>
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.salesByCategory}>
-                      <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
-                      <YAxis fontSize={10} axisLine={false} tickLine={false} />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                        cursor={{ fill: '#f9fafb' }}
-                      />
-                      <Bar dataKey="value" fill="#D4AF37" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="space-y-4">
+                  {systemErrors.filter(e => !e.fixed).slice(0, 4).map((err, i) => (
+                    <div key={i} className="p-5 border border-red-100 bg-red-50/20 rounded-[2rem] flex items-start gap-4">
+                      <div className="p-3 bg-red-500 text-white rounded-2xl shadow-lg shadow-red-500/20">
+                        <AlertCircle size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">{err.route}</span>
+                          <button 
+                            onClick={() => fixSystemError(err.id)}
+                            className="text-[9px] font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest"
+                          >
+                            Fix
+                          </button>
+                        </div>
+                        <p className="text-xs font-bold text-stone-800 leading-relaxed">{err.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {systemErrors.filter(e => !e.fixed).length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle size={32} />
+                      </div>
+                      <p className="text-sm font-bold text-stone-800">No Critical Issues</p>
+                      <p className="text-[10px] text-stone-400 uppercase tracking-widest mt-1">System is running optimally</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -596,6 +912,23 @@ export const AdminApp: React.FC = () => {
                       </div>
                     </div>
 
+                    {order.invoicePhoto && (
+                      <div className="mt-4">
+                        <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest block mb-2">Накладная (Фото)</label>
+                        <div className="w-full h-32 rounded-2xl overflow-hidden border border-stone-100 relative group/img">
+                          <img src={order.invoicePhoto} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-all flex items-center justify-center">
+                            <button 
+                              onClick={() => window.open(order.invoicePhoto, '_blank')}
+                              className="p-2 bg-white text-stone-800 rounded-full shadow-lg"
+                            >
+                              <ImageIcon size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="pt-2 flex justify-between items-center">
                       <span className="text-[10px] text-stone-400 font-medium">{new Date(order.createdAt).toLocaleString()}</span>
                       <div className="flex gap-2">
@@ -631,6 +964,132 @@ export const AdminApp: React.FC = () => {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'telegram' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Telegram Ad Publisher</h2>
+              <div className="flex gap-2">
+                <div className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                  <Bot size={14} />
+                  AI Assistant Ready
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <MessageSquare size={16} />
+                    Compose Message
+                  </h4>
+                  <textarea
+                    value={telegramMessage}
+                    onChange={(e) => setTelegramMessage(e.target.value)}
+                    placeholder="Enter your advertisement message here... (HTML tags supported)"
+                    className="w-full h-64 p-6 bg-stone-50 border border-stone-100 rounded-3xl focus:ring-2 focus:ring-gold outline-none text-stone-800 font-medium resize-none"
+                  />
+                  <div className="mt-6 flex justify-between items-center">
+                    <p className="text-[10px] text-stone-400 font-bold">
+                      Supported tags: &lt;b&gt;, &lt;i&gt;, &lt;a&gt;, &lt;code&gt;
+                    </p>
+                    <button
+                      onClick={async () => {
+                        if (!telegramMessage.trim()) return;
+                        setIsSendingTelegram(true);
+                        try {
+                          const res = await apiFetch('/api/telegram/send', {
+                            method: 'POST',
+                            body: JSON.stringify({ message: telegramMessage })
+                          });
+                          const data = await res.json();
+                          if (data.ok) {
+                            alert('Message sent successfully!');
+                            setTelegramMessage('');
+                          } else {
+                            alert('Error: ' + (data.description || 'Unknown error'));
+                          }
+                        } catch (e) {
+                          alert('Failed to send message');
+                        } finally {
+                          setIsSendingTelegram(false);
+                        }
+                      }}
+                      disabled={isSendingTelegram || !telegramMessage.trim()}
+                      className="px-8 py-4 bg-gold text-white rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-gold-dark transition-all disabled:opacity-50"
+                    >
+                      {isSendingTelegram ? 'Sending...' : 'Publish to Channel'}
+                      <Send size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6">Preview</h4>
+                  <div className="p-6 bg-[#f0f2f5] rounded-3xl border border-stone-100 max-w-md mx-auto">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">U</div>
+                      <div>
+                        <p className="text-sm font-bold text-stone-800">Uzbechka Pro Channel</p>
+                        <p className="text-[10px] text-stone-400">1,240 subscribers</p>
+                      </div>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl shadow-sm text-sm text-stone-800 whitespace-pre-wrap min-h-[100px]">
+                      {telegramMessage || 'Your message will appear here...'}
+                    </div>
+                    <div className="mt-2 text-[10px] text-stone-400 text-right">12:45 PM</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6">Telegram Settings</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 block">Bot Token</label>
+                      <input
+                        type="password"
+                        value={settings.telegram_bot_token || ''}
+                        onChange={(e) => updateSettings({ telegram_bot_token: e.target.value })}
+                        className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs outline-none focus:ring-1 focus:ring-gold"
+                        placeholder="712345678:AA..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 block">Channel ID</label>
+                      <input
+                        type="text"
+                        value={settings.telegram_chat_id || ''}
+                        onChange={(e) => updateSettings({ telegram_chat_id: e.target.value })}
+                        className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs outline-none focus:ring-1 focus:ring-gold"
+                        placeholder="@uzbechka_channel"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-xl">
+                  <Sparkles size={32} className="mb-4 text-blue-200" />
+                  <h3 className="text-xl font-black mb-2">AI Copywriter</h3>
+                  <p className="text-sm text-blue-100 mb-6 leading-relaxed">
+                    Let AI generate high-converting ad copy for your Telegram channel based on current top products.
+                  </p>
+                  <button 
+                    onClick={() => {
+                      const topProduct = products.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0];
+                      setTelegramMessage(`🔥 <b>HOT DEAL!</b> 🔥\n\nCheck out our <b>${topProduct?.name}</b>!\nOnly for <b>${topProduct?.price.toLocaleString()} UZS</b>.\n\n🚀 Order now in our app!`);
+                    }}
+                    className="w-full py-4 bg-white text-blue-600 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-50 transition-all"
+                  >
+                    Generate Ad Copy
+                  </button>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -808,147 +1267,6 @@ export const AdminApp: React.FC = () => {
           </motion.div>
         )}
 
-        {activeTab === 'kpi' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <h2 className="text-2xl font-bold">Employee KPI Leaderboard</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {['agent', 'courier'].map(role => (
-                <div key={role} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
-                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                    {role === 'agent' ? <Users size={16} /> : <Truck size={16} />}
-                    Top {role}s
-                  </h4>
-                  <div className="space-y-4">
-                    {kpis.filter(k => k.role === role).map((kpi, i) => {
-                      const u = users.find(user => user.id === kpi.user_id);
-                      return (
-                        <div key={i} className="flex items-center gap-4 p-3 hover:bg-stone-50 rounded-2xl transition-all">
-                          <div className="w-10 h-10 rounded-xl bg-stone-100 overflow-hidden border border-stone-200">
-                            {u?.photo ? <img src={u.photo} className="w-full h-full object-cover" /> : <User size={20} className="m-auto mt-2 text-stone-300" />}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-stone-800">{u?.name || 'Unknown'}</p>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
-                                kpi.level === 'platinum' ? 'bg-blue-500 text-white' :
-                                kpi.level === 'gold' ? 'bg-gold text-white' :
-                                kpi.level === 'silver' ? 'bg-stone-400 text-white' :
-                                'bg-orange-400 text-white'
-                              }`}>{kpi.level}</span>
-                              <span className="text-[10px] text-stone-400 font-bold">Score: {kpi.score}</span>
-                            </div>
-                          </div>
-                          {role === 'agent' && (
-                            <div className="text-right">
-                              <button 
-                                onClick={() => {
-                                  const p = prompt("Enter commission %", "5");
-                                  if (p) setCommission(kpi.user_id, Number(p));
-                                }}
-                                className="text-[10px] font-black text-gold hover:underline uppercase"
-                              >
-                                Set %
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === 'forecast' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <h2 className="text-2xl font-bold">AI Profit Forecast (Next 30 Days)</h2>
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={forecasts}>
-                    <XAxis dataKey="date" fontSize={10} />
-                    <YAxis fontSize={10} />
-                    <Tooltip />
-                    <Bar dataKey="expected_revenue" fill="#D4AF37" radius={[4, 4, 0, 0]} name="Expected Revenue" />
-                    <Bar dataKey="expected_orders" fill="#8B0000" radius={[4, 4, 0, 0]} name="Expected Orders" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Total Expected Revenue</p>
-                  <h3 className="text-xl font-black text-gold-dark">
-                    {(forecasts.reduce((sum, f) => sum + (f.expected_revenue || 0), 0)).toLocaleString()} UZS
-                  </h3>
-                </div>
-                <div className="p-6 bg-stone-50 rounded-3xl border border-stone-100">
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Avg Confidence</p>
-                  <h3 className="text-xl font-black text-stone-800">
-                    {(forecasts.reduce((sum, f) => sum + f.confidence, 0) / (forecasts.length || 1)).toFixed(1)}%
-                  </h3>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === 'health' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">System Health & Monitoring</h2>
-              <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 ${
-                healthLogs.some(l => l.status === 'error') ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
-              }`}>
-                {healthLogs.some(l => l.status === 'error') ? 'System Warning' : 'System Healthy'}
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
-                <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6">Recent Health Logs</h4>
-                <div className="space-y-4">
-                  {healthLogs.map((log, i) => (
-                    <div key={i} className="flex items-center gap-4 p-4 bg-stone-50 rounded-2xl">
-                      <div className={`p-2 rounded-xl ${
-                        log.status === 'ok' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                      }`}>
-                        <CheckCircle size={18} />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-stone-800">{log.component}</p>
-                        <p className="text-[10px] text-stone-500">{log.details}</p>
-                      </div>
-                      <span className="text-[10px] font-bold text-stone-400">{new Date(log.created_at).toLocaleTimeString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
-                <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-6">Critical Errors</h4>
-                <div className="space-y-4">
-                  {systemErrors.filter(e => !e.fixed).map((err, i) => (
-                    <div key={i} className="p-4 border border-red-100 bg-red-50/30 rounded-2xl">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-black text-red-500 uppercase">{err.route}</span>
-                        <button 
-                          onClick={() => fixSystemError(err.id)}
-                          className="text-[10px] font-black text-blue-500 hover:underline uppercase"
-                        >
-                          Mark Fixed
-                        </button>
-                      </div>
-                      <p className="text-xs font-bold text-stone-800">{err.message}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
         {activeTab === 'security' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <h2 className="text-2xl font-bold">AI Security Analyzer</h2>
@@ -1110,6 +1428,122 @@ export const AdminApp: React.FC = () => {
           </motion.div>
         )}
 
+        {activeTab === 'salaries' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Зарплаты и Управление Персоналом</h2>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setShowAddSalary(true)}
+                  className="gold-gradient text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md"
+                >
+                  <Plus size={20} /> Выплатить Зарплату
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-4">
+                <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest">Конфигурация Сотрудников</h3>
+                {users.filter(u => u.role === 'agent' || u.role === 'courier').map(emp => {
+                  const config = salaryConfigs.find(c => c.userId === emp.id) || { baseSalary: 0, commissionPercent: 5, workingDays: 22 };
+                  const totalSales = orders.filter(o => (o.agentId === emp.id || o.courierId === emp.id) && o.paymentStatus === 'paid').reduce((s, o) => s + (o.totalPrice || 0), 0);
+                  const commission = totalSales * (config.commissionPercent || 0) / 100;
+                  const totalSalary = (config.baseSalary || 0) + commission;
+
+                  return (
+                    <div key={emp.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-stone-100 overflow-hidden border border-stone-200">
+                            {emp.photo ? <img src={emp.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-stone-300"><User size={20} /></div>}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-stone-800">{emp.name}</h4>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                              emp.role === 'agent' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
+                            }`}>{emp.role}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">Итого к выплате</span>
+                          <span className="text-xl font-black text-gold-dark">{totalSalary.toLocaleString()} UZS</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest block">Оклад (Фикс)</label>
+                          <input 
+                            type="number" 
+                            defaultValue={config.baseSalary}
+                            onBlur={(e) => {
+                              const val = Number(e.target.value);
+                              updateSalaryConfig(emp.id, { ...config, baseSalary: val });
+                              speak(`Оклад для ${emp.name} обновлен`);
+                            }}
+                            className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-gold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest block">Комиссия (%)</label>
+                          <input 
+                            type="number" 
+                            defaultValue={config.commissionPercent}
+                            onBlur={(e) => {
+                              const val = Number(e.target.value);
+                              updateSalaryConfig(emp.id, { ...config, commissionPercent: val });
+                              speak(`Процент комиссии для ${emp.name} изменен`);
+                            }}
+                            className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-gold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest block">Рабочих дней</label>
+                          <input 
+                            type="number" 
+                            defaultValue={config.workingDays}
+                            onBlur={(e) => {
+                              const val = Number(e.target.value);
+                              updateSalaryConfig(emp.id, { ...config, workingDays: val });
+                            }}
+                            className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-gold"
+                          />
+                        </div>
+                        <div className="bg-gold/5 p-2 rounded-xl border border-gold/10 flex flex-col justify-center items-center">
+                          <span className="text-[8px] font-black text-gold-dark uppercase tracking-widest">От продаж</span>
+                          <span className="text-xs font-bold text-gold-dark">{commission.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
+                  <h4 className="text-xs font-black text-stone-400 uppercase tracking-widest mb-4">История Выплат</h4>
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                    {salaries.map(s => (
+                      <div key={s.id} className="p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-[10px] font-bold text-stone-400">{new Date(s.createdAt).toLocaleDateString()}</span>
+                          <span className="text-[10px] font-black text-green-600 uppercase">{s.status}</span>
+                        </div>
+                        <p className="text-sm font-bold text-stone-800">{s.userName}</p>
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="text-xs text-stone-500">{s.type} ({s.period})</span>
+                          <span className="text-sm font-black text-gold-dark">{s.amount.toLocaleString()} UZS</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'debts' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <h2 className="text-2xl font-bold">{t('debts')}</h2>
@@ -1193,70 +1627,7 @@ export const AdminApp: React.FC = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <h2 className="text-2xl font-bold">{t('tracker')}</h2>
             <div className="bg-white rounded-[2.5rem] p-4 shadow-sm border border-stone-100 h-[600px] relative overflow-hidden">
-              <MapContainer 
-                center={BUKHARA_CENTER} 
-                zoom={13} 
-                className="rounded-3xl overflow-hidden h-full w-full z-0"
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                {/* Store Marker */}
-                <Marker position={BUKHARA_CENTER} icon={storeIcon}>
-                  <Popup>
-                    <div className="font-bold">{t('store')}</div>
-                    <div className="text-xs text-stone-500">{settings.address || 'Bukhara, Uzbekistan'}</div>
-                  </Popup>
-                </Marker>
-
-                {users.filter(u => (u.role === 'agent' || u.role === 'courier') && u.lat != null && u.lng != null).map(u => {
-                  const currentOrder = orders.find(o => o.courierId === u.id && (o.orderStatus === 'on_way' || o.orderStatus === 'confirmed'));
-                  const isOnline = u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 60000);
-                  const icon = u.role === 'agent' ? agentIcon : courierIcon;
-
-                  return (
-                    <Marker 
-                      key={u.id}
-                      position={[Number(u.lat), Number(u.lng)]}
-                      icon={icon}
-                      eventHandlers={{
-                        click: () => fetchUserTrack(u.id),
-                      }}
-                    >
-                      <Popup>
-                        <div style={{ padding: '5px', minWidth: '150px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                            <div className="relative">
-                              <img src={u.photo || 'https://picsum.photos/seed/user/50/50'} style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover' }} />
-                              <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-stone-300'}`}></div>
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{u.name}</div>
-                              <div style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>
-                                {u.role === 'agent' ? t('agent') : t('courier')} • {isOnline ? 'Online' : 'Offline'}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ fontSize: '12px', marginBottom: '4px' }}><b>{t('phone')}:</b> {u.phone}</div>
-                          {currentOrder ? (
-                            <div style={{ fontSize: '12px', color: '#7000ff' }}><b>Заказ:</b> #{currentOrder.id} ({currentOrder.orderStatus})</div>
-                          ) : (
-                            <div style={{ fontSize: '12px', color: '#888' }}>Свободен</div>
-                          )}
-                          <div style={{ fontSize: '10px', color: '#aaa', marginTop: '8px' }}>Последнее обновление: {u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString() : 'Только что'}</div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  );
-                })}
-                {selectedUserForTrack && userTrack.length > 0 && (
-                  <Polyline
-                    positions={userTrack}
-                    pathOptions={{ color: '#D4AF37', weight: 4, opacity: 0.8 }}
-                  />
-                )}
-              </MapContainer>
+              <MapboxTracker users={users} orders={orders} settings={settings} t={t} />
               
               <div className="absolute top-8 right-8 bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-white/20 space-y-3">
                 <div className="flex justify-between items-center mb-1">
@@ -1273,14 +1644,6 @@ export const AdminApp: React.FC = () => {
                   <div className="w-3 h-3 rounded-full bg-orange-500"></div>
                   <span>{t('courier')}</span>
                 </div>
-                {selectedUserForTrack && (
-                  <button 
-                    onClick={() => { setSelectedUserForTrack(null); setUserTrack([]); }}
-                    className="w-full mt-2 py-2 bg-stone-100 text-stone-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-200 transition-all"
-                  >
-                    Скрыть трек
-                  </button>
-                )}
               </div>
             </div>
           </motion.div>
@@ -1294,12 +1657,11 @@ export const AdminApp: React.FC = () => {
           { id: 'products', icon: <Package size={20} />, label: t('products') },
           { id: 'orders', icon: <ShoppingBag size={20} />, label: t('orders') },
           { id: 'ai', icon: <Bot size={20} />, label: 'AI' },
-          { id: 'kpi', icon: <TrendingUp size={20} />, label: 'KPI' },
-          { id: 'forecast', icon: <TrendingUp size={20} />, label: 'Forecast' },
-          { id: 'health', icon: <CheckCircle size={20} />, label: 'Health' },
           { id: 'security', icon: <AlertCircle size={20} />, label: 'Security' },
           { id: 'deploy', icon: <Play size={20} />, label: 'Deploy' },
           { id: 'tracker', icon: <Navigation size={20} />, label: t('tracker') },
+          { id: 'telegram', icon: <Send size={20} />, label: 'Telegram' },
+          { id: 'salaries', icon: <Banknote size={20} />, label: 'Salaries' },
           { id: 'users', icon: <Users size={20} />, label: t('users') },
           { id: 'settings', icon: <SettingsIcon size={20} />, label: t('settings') },
         ].map(item => (
@@ -1326,7 +1688,70 @@ export const AdminApp: React.FC = () => {
         message={confirmDialog.message}
       />
 
-      {/* Add Category Modal */}
+      {/* Add Salary Modal */}
+      <AnimatePresence>
+        {showAddSalary && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-stone-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Выплата Зарплаты</h3>
+                <button onClick={() => setShowAddSalary(false)} className="text-stone-400"><X /></button>
+              </div>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const salaryData = {
+                  userId: Number(formData.get('userId')),
+                  amount: Number(formData.get('amount')),
+                  type: formData.get('type') as string,
+                  period: formData.get('period') as string,
+                };
+                await createSalary(salaryData);
+                speak(`Зарплата выплачена`);
+                setShowAddSalary(false);
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сотрудник</label>
+                  <select name="userId" required className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50">
+                    <option value="">Выберите сотрудника</option>
+                    {users.filter(u => u.role !== 'client').map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сумма (UZS)</label>
+                  <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Тип</label>
+                    <select name="type" className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50">
+                      <option value="salary">Зарплата</option>
+                      <option value="bonus">Бонус</option>
+                      <option value="advance">Аванс</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Период</label>
+                    <input name="period" placeholder="Май 2024" className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                  </div>
+                </div>
+                <button type="submit" className="w-full gold-gradient text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg mt-4">
+                  Подтвердить Выплату
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showAddCategory && (
           <motion.div 
@@ -1762,12 +2187,7 @@ export const AdminApp: React.FC = () => {
                   if (editingUser) {
                     await updateUser(editingUser.id, data);
                   } else {
-                    await apiFetch('/api/auth/register', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(data),
-                    });
-                    await refreshData();
+                    await addUser(data);
                   }
                   setShowAddUser(false);
                   setEditingUser(null);
@@ -1835,6 +2255,76 @@ export const AdminApp: React.FC = () => {
 
                 <button type="submit" className="w-full gold-gradient text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl hover:shadow-gold/30 transition-all active:scale-95">
                   {editingUser ? t('save') : t('createAccount')}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showAddSalary && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[3rem] w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
+            >
+              <button onClick={() => setShowAddSalary(false)} className="absolute top-6 right-6 p-2 hover:bg-stone-100 rounded-full transition-colors">
+                <X size={24} className="text-stone-400" />
+              </button>
+              
+              <h3 className="text-2xl font-bold mb-6">Выплата Зарплаты</h3>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const salary = {
+                  userId: Number(formData.get('userId')),
+                  amount: Number(formData.get('amount')),
+                  type: formData.get('type'),
+                  period: formData.get('period'),
+                  date: new Date().toISOString()
+                };
+                
+                await createSalary(salary);
+                setShowAddSalary(false);
+                speak('Выплата успешно зарегистрирована');
+              }} className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сотрудник</label>
+                  <select name="userId" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none">
+                    <option value="">Выберите сотрудника</option>
+                    {users.filter(u => u.role === 'agent' || u.role === 'courier').map(u => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сумма (UZS)</label>
+                  <input name="amount" type="number" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Тип Выплаты</label>
+                  <select name="type" className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none">
+                    <option value="salary">Основная Зарплата</option>
+                    <option value="bonus">Бонус / Премия</option>
+                    <option value="advance">Аванс</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Период</label>
+                  <input name="period" placeholder="Напр: Октябрь 2023" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
+                </div>
+
+                <button type="submit" className="w-full gold-gradient text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl hover:shadow-gold/30 transition-all active:scale-95">
+                  Подтвердить Выплату
                 </button>
               </form>
             </motion.div>

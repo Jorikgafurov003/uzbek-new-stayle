@@ -4,7 +4,8 @@ const getApiBaseUrl = () => {
 
   // If we are in a Capacitor environment (mobile app)
   if (window.location.protocol === 'capacitor:') {
-    return 'https://ais-dev-cu5xt2gwtzi4ezh5kdhta5-384858912045.asia-southeast1.run.app';
+    // Try to get from meta tag or just use a default
+    return window.location.origin.replace('capacitor://', 'https://'); 
   }
   
   // For web, relative paths are most reliable and avoid CORS/origin issues
