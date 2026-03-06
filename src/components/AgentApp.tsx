@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export const AgentApp: React.FC = () => {
-  const { products, categories, orders, stats, users, createOrder, updateOrder, updateUser, speak, isOnline, apiFetch, refreshData, banners } = useData();
+  const { products, categories, orders, stats, users, createOrder, updateOrder, updateUser, speak, isOnline, apiFetch, refreshData } = useData();
   const { logout, user: authUser } = useAuth();
   const { t } = useLanguage();
   
@@ -25,31 +25,6 @@ export const AgentApp: React.FC = () => {
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; onConfirm: () => void; title?: string; message?: string }>({ isOpen: false, onConfirm: () => {} });
   const [showAddClient, setShowAddClient] = useState(false);
   const [newClientData, setNewClientData] = useState({ name: '', phone: '', password: 'client_password' });
-  const [currentBanner, setCurrentBanner] = useState(0);
-
-  useEffect(() => {
-    // Request permissions
-    const requestPermissions = async () => {
-      try {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(() => {}, () => {});
-        }
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => {});
-        }
-      } catch (e) {}
-    };
-    requestPermissions();
-  }, []);
-
-  useEffect(() => {
-    if (banners.length > 0) {
-      const timer = setInterval(() => {
-        setCurrentBanner(prev => (prev + 1) % banners.length);
-      }, 5000);
-      return () => clearInterval(timer);
-    }
-  }, [banners]);
 
   const handleCreateClient = async () => {
     if (!newClientData.name || !newClientData.phone) return;
@@ -158,26 +133,6 @@ export const AgentApp: React.FC = () => {
       </header>
 
       <main className="p-4 max-w-2xl mx-auto">
-        {/* Banners Carousel */}
-        {banners.filter(b => b.isActive).length > 0 && (
-          <div className="mb-6 relative h-32 rounded-3xl overflow-hidden shadow-sm border border-white/20">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={currentBanner}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0"
-              >
-                <img src={banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].imageUrl} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
-                  <h2 className="text-white text-sm font-bold leading-tight">{banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].title}</h2>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        )}
-
         {activeTab === 'orders' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-[#e2e5eb] space-y-6">
@@ -219,7 +174,7 @@ export const AgentApp: React.FC = () => {
                         <img src={product.image} className="w-10 h-10 rounded-lg object-cover" />
                         <div>
                           <p className="text-sm font-bold">{product.name}</p>
-                          <p className="text-[10px] text-uzum-muted">{(product.discountPrice || product.price || 0).toLocaleString()} сум</p>
+                          <p className="text-[10px] text-uzum-muted">{((product.discountPrice || product.price) || 0).toLocaleString()} сум</p>
                         </div>
                       </div>
                       <button 
@@ -328,10 +283,10 @@ export const AgentApp: React.FC = () => {
               </div>
               <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-[#e2e5eb] text-center">
                 <p className="text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-1">Выручка</p>
-                  <p className="text-xl font-black text-uzum-primary">
-                    {(orders.filter(o => o.agentId === user?.id && o.paymentStatus === 'paid')
-                      .reduce((sum, o) => sum + (o.totalPrice || 0), 0)).toLocaleString()}
-                  </p>
+                <p className="text-xl font-black text-uzum-primary">
+                  {orders.filter(o => o.agentId === user?.id && o.paymentStatus === 'paid')
+                    .reduce((sum, o) => sum + (o.totalPrice || 0), 0).toLocaleString()}
+                </p>
               </div>
             </div>
           </div>
@@ -396,35 +351,7 @@ export const AgentApp: React.FC = () => {
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-uzum-text uppercase tracking-widest">Новый Клиент</h3>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={async () => {
-                      if ('contacts' in navigator && 'ContactsManager' in window) {
-                        try {
-                          // @ts-ignore
-                          const contacts = await navigator.contacts.select(['name', 'tel'], { multiple: false });
-                          if (contacts.length > 0) {
-                            const contact = contacts[0];
-                            setNewClientData({
-                              ...newClientData,
-                              name: contact.name?.[0] || '',
-                              phone: contact.tel?.[0] || ''
-                            });
-                          }
-                        } catch (e) {
-                          console.error(e);
-                        }
-                      } else {
-                        alert('Ваше устройство не поддерживает прямой доступ к контактам через браузер.');
-                      }
-                    }}
-                    className="p-2 bg-uzum-bg text-uzum-primary rounded-full"
-                    title="Import from Contacts"
-                  >
-                    <Users size={20} />
-                  </button>
-                  <button onClick={() => setShowAddClient(false)} className="p-2 bg-uzum-bg rounded-full text-uzum-muted"><X size={20} /></button>
-                </div>
+                <button onClick={() => setShowAddClient(false)} className="p-2 bg-uzum-bg rounded-full text-uzum-muted"><X size={20} /></button>
               </div>
               <div className="space-y-4">
                 <div>

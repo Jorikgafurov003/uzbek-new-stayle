@@ -4,72 +4,6 @@ import { apiFetch, API_BASE_URL } from '../utils/api';
 import { useLanguage } from './LanguageContext';
 import { useAuth } from './AuthContext';
 import { io, Socket } from 'socket.io-client';
-import { db, auth } from '../firebase';
-import { 
-  collection, 
-  onSnapshot, 
-  query, 
-  where, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  setDoc,
-  getDocFromServer,
-  Timestamp
-} from 'firebase/firestore';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
 
 interface DataContextType {
   products: Product[];
@@ -90,6 +24,15 @@ interface DataContextType {
   commissions: { agent_id: number; percent: number }[];
   salaryConfigs: any[];
   salaries: any[];
+  accounting: {
+    income: number;
+    expenses: number;
+    profit: number;
+    salaryExpenses: number;
+    otherExpenses: number;
+    expensesList: any[];
+    salariesList: any[];
+  } | null;
   refreshData: () => Promise<void>;
   addProduct: (product: Partial<Product>) => Promise<void>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
@@ -109,6 +52,8 @@ interface DataContextType {
   updateSettings: (updates: any) => Promise<void>;
   addDebt: (debt: Partial<Debt>) => Promise<void>;
   updateDebt: (id: number, updates: Partial<Debt>) => Promise<void>;
+  addExpense: (expense: { title: string; amount: number; category: string }) => Promise<void>;
+  deleteExpense: (id: number) => Promise<void>;
   updateUserLocation: (lat: number, lng: number, speed?: number) => Promise<void>;
   speak: (text: string) => void;
   playSound: (type: 'order' | 'message' | 'success' | 'error') => void;
@@ -142,6 +87,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [commissions, setCommissions] = useState<{ agent_id: number; percent: number }[]>([]);
   const [salaryConfigs, setSalaryConfigs] = useState<any[]>([]);
   const [salaries, setSalaries] = useState<any[]>([]);
+  const [accounting, setAccounting] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const { t, language } = useLanguage();
@@ -151,93 +97,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!user || !auth.currentUser) return;
-
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration. ");
-        }
-      }
-    }
-    testConnection();
-
-    // Firestore Real-time Listeners
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'products'));
-
-    const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
-      setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'categories'));
-
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
-      setOrders(snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { 
-          id: doc.id, 
-          ...data, 
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt 
-        } as Order;
-      }));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'orders'));
-
-    const unsubBanners = onSnapshot(collection(db, 'banners'), (snapshot) => {
-      setBanners(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Banner)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'banners'));
-
-    const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
-      const settingsObj: any = {};
-      snapshot.docs.forEach(doc => {
-        settingsObj[doc.id] = doc.data().value;
-      });
-      setSettings(settingsObj);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'settings'));
-
-    // Role-based listeners
-    let unsubUsers = () => {};
-    let unsubSalaries = () => {};
-    let unsubSalaryConfigs = () => {};
-    let unsubDebts = () => {};
-
-    if (user.role === 'admin' || user.role === 'agent') {
-      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
-    }
-
-    if (user.role === 'admin') {
-      unsubSalaries = onSnapshot(collection(db, 'salaries'), (snapshot) => {
-        setSalaries(snapshot.docs.map(doc => {
-          const data = doc.data();
-          return { 
-            id: doc.id, 
-            ...data, 
-            createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt 
-          };
-        }));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'salaries'));
-
-      unsubSalaryConfigs = onSnapshot(collection(db, 'user_salary_config'), (snapshot) => {
-        setSalaryConfigs(snapshot.docs.map(doc => ({ userId: doc.id, ...doc.data() })));
-      }, (err) => handleFirestoreError(err, OperationType.LIST, 'user_salary_config'));
-    }
-
-    // Debts listener (Admins see all, clients see their own - handled by rules but better to be explicit if possible)
-    unsubDebts = onSnapshot(collection(db, 'debts'), (snapshot) => {
-      setDebts(snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { 
-          id: doc.id, 
-          ...data, 
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt,
-          dueDate: data.dueDate instanceof Timestamp ? data.dueDate.toDate().toISOString() : data.dueDate
-        } as Debt;
-      }));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'debts'));
-
     // Initialize Socket.io
     const socket = io(API_BASE_URL || window.location.origin);
     socketRef.current = socket;
@@ -274,27 +133,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshData();
     });
 
-    refreshData();
-
     return () => {
-      unsubProducts();
-      unsubCategories();
-      unsubOrders();
-      unsubBanners();
-      unsubUsers();
-      unsubSettings();
-      unsubDebts();
-      unsubSalaries();
-      unsubSalaryConfigs();
       socket.disconnect();
     };
-  }, [user]);
+  }, []);
 
   const refreshData = async () => {
-    if (!user) return;
     try {
       const endpoints = [
+        { name: 'products', url: '/api/products' },
+        { name: 'categories', url: '/api/categories' },
+        { name: 'orders', url: '/api/orders' },
         { name: 'stats', url: '/api/stats' },
+        { name: 'users', url: '/api/users' },
+        { name: 'banners', url: '/api/banners' },
+        { name: 'settings', url: '/api/settings' },
+        { name: 'debts', url: '/api/debts' },
         { name: 'errors', url: '/api/system-errors' },
         { name: 'insights', url: '/api/admin/ai-insights' },
         { name: 'kpis', url: '/api/admin/kpi-leaderboard' },
@@ -302,7 +156,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { name: 'health', url: '/api/admin/system-health' },
         { name: 'security', url: '/api/admin/security-alerts' },
         { name: 'topStats', url: '/api/admin/top-stats' },
-        { name: 'commissions', url: '/api/admin/commissions' }
+        { name: 'commissions', url: '/api/admin/commissions' },
+        { name: 'salaryConfigs', url: '/api/admin/salary-configs' },
+        { name: 'salaries', url: '/api/admin/salaries' },
+        { name: 'accounting', url: '/api/admin/accounting' }
       ];
 
       const results = await Promise.all(
@@ -376,6 +233,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           case 'commissions': setCommissions(res.data); break;
           case 'salaryConfigs': setSalaryConfigs(res.data); break;
           case 'salaries': setSalaries(res.data); break;
+          case 'accounting': setAccounting(res.data); break;
           case 'topStats': setStats(prev => prev ? { ...prev, ...res.data } : res.data); break;
         }
       });
@@ -477,199 +335,163 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [language, settings.voice_enabled]);
 
   const addProduct = async (product: Partial<Product>) => {
-    try {
-      await addDoc(collection(db, 'products'), product);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'products');
-    }
+    await apiFetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+    await refreshData();
   };
 
-  const deleteProduct = async (id: number | string) => {
-    try {
-      await deleteDoc(doc(db, 'products', String(id)));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
-    }
+  const deleteProduct = async (id: number) => {
+    await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    await refreshData();
   };
 
-  const updateProduct = async (id: number | string, product: Partial<Product>) => {
-    try {
-      await updateDoc(doc(db, 'products', String(id)), product);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
-    }
+  const updateProduct = async (id: number, product: Partial<Product>) => {
+    await apiFetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+    await refreshData();
   };
 
   const addCategory = async (name: string) => {
-    try {
-      await addDoc(collection(db, 'categories'), { name });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'categories');
-    }
+    await apiFetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    await refreshData();
   };
 
-  const deleteCategory = async (id: number | string) => {
-    try {
-      await deleteDoc(doc(db, 'categories', String(id)));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `categories/${id}`);
-    }
+  const deleteCategory = async (id: number) => {
+    await apiFetch(`/api/categories/${id}`, { method: 'DELETE' });
+    await refreshData();
   };
 
   const createOrder = async (order: any) => {
-    try {
-      const docRef = await addDoc(collection(db, 'orders'), {
-        ...order,
-        createdAt: Timestamp.now()
-      });
-      if (socketRef.current) {
-        socketRef.current.emit('new_order', { id: docRef.id, ...order });
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'orders');
+    const res = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(order),
+    });
+    if (res.ok && socketRef.current) {
+      const newOrder = await res.json();
+      socketRef.current.emit('new_order', newOrder);
     }
+    await refreshData();
   };
 
-  const updateOrder = async (id: number | string, updates: any) => {
-    try {
-      await updateDoc(doc(db, 'orders', String(id)), updates);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `orders/${id}`);
-    }
+  const updateOrder = async (id: number, updates: any) => {
+    await apiFetch(`/api/orders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
   };
 
-  const deleteOrder = async (id: number | string) => {
-    try {
-      await deleteDoc(doc(db, 'orders', String(id)));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `orders/${id}`);
-    }
+  const deleteOrder = async (id: number) => {
+    await apiFetch(`/api/orders/${id}`, { method: 'DELETE' });
+    await refreshData();
   };
 
-  const deleteUser = async (id: number | string) => {
-    try {
-      await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
-      await deleteDoc(doc(db, 'users', String(id)));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `users/${id}`);
-    }
+  const deleteUser = async (id: number) => {
+    await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+    await refreshData();
   };
 
-  const updateSalaryConfig = async (userId: number | string, config: any) => {
-    try {
-      await setDoc(doc(db, 'user_salary_config', String(userId)), config, { merge: true });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `user_salary_config/${userId}`);
-    }
+  const updateSalaryConfig = async (userId: number, config: any) => {
+    await apiFetch('/api/admin/salary-configs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...config }),
+    });
+    await refreshData();
   };
 
   const createSalary = async (salary: any) => {
-    try {
-      await addDoc(collection(db, 'salaries'), {
-        ...salary,
-        createdAt: Timestamp.now()
-      });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'salaries');
-    }
+    await apiFetch('/api/admin/salaries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(salary),
+    });
+    await refreshData();
   };
 
-  const addUser = async (userData: any) => {
-    try {
-      const res = await apiFetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
-      if (!res.ok) throw new Error('Failed to register user in backend');
-      const newUser = await res.json();
-
-      await setDoc(doc(db, 'users', String(newUser.id)), {
-        name: userData.name,
-        phone: userData.phone,
-        role: userData.role,
-        carType: userData.carType || null,
-        carPhoto: userData.carPhoto || null,
-        photo: userData.photo || null,
-        createdAt: new Date().toISOString()
-      });
-      
-      return newUser;
-    } catch (err) {
-      console.error('Error adding user:', err);
-      throw err;
-    }
-  };
-
-  const updateUser = async (id: number | string, updates: any) => {
-    try {
-      await apiFetch(`/api/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      await updateDoc(doc(db, 'users', String(id)), updates);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${id}`);
-    }
+  const updateUser = async (id: number, updates: any) => {
+    await apiFetch(`/api/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
   };
 
   const addBanner = async (banner: Partial<Banner>) => {
-    try {
-      await addDoc(collection(db, 'banners'), banner);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'banners');
-    }
+    await apiFetch('/api/banners', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(banner),
+    });
+    await refreshData();
   };
 
-  const updateBanner = async (id: number | string, updates: Partial<Banner>) => {
-    try {
-      await updateDoc(doc(db, 'banners', String(id)), updates);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `banners/${id}`);
-    }
+  const updateBanner = async (id: number, updates: Partial<Banner>) => {
+    await apiFetch(`/api/banners/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
   };
 
-  const deleteBanner = async (id: number | string) => {
-    try {
-      await deleteDoc(doc(db, 'banners', String(id)));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `banners/${id}`);
-    }
+  const deleteBanner = async (id: number) => {
+    await apiFetch(`/api/banners/${id}`, { method: 'DELETE' });
+    await refreshData();
   };
 
   const updateSettings = async (updates: any) => {
-    try {
-      await apiFetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      for (const key in updates) {
-        await setDoc(doc(db, 'settings', key), { value: updates[key] });
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'settings');
-    }
+    await apiFetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
   };
 
   const addDebt = async (debt: Partial<Debt>) => {
-    try {
-      await addDoc(collection(db, 'debts'), {
-        ...debt,
-        createdAt: Timestamp.now()
-      });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'debts');
-    }
+    await apiFetch('/api/debts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(debt),
+    });
+    await refreshData();
   };
 
-  const updateDebt = async (id: number | string, updates: Partial<Debt>) => {
-    try {
-      await updateDoc(doc(db, 'debts', String(id)), updates);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `debts/${id}`);
-    }
+  const updateDebt = async (id: number, updates: Partial<Debt>) => {
+    await apiFetch(`/api/debts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
+  };
+
+  const addExpense = async (expense: { title: string; amount: number; category: string }) => {
+    await apiFetch('/api/admin/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expense),
+    });
+    await refreshData();
+  };
+
+  const deleteExpense = async (id: number) => {
+    await apiFetch(`/api/admin/expenses/${id}`, { method: 'DELETE' });
+    await refreshData();
   };
 
   const updateUserLocation = async (lat: number, lng: number, speed?: number) => {
@@ -682,7 +504,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <DataContext.Provider value={{ 
       products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
       insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries,
-      refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser, addUser,
+      refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
       updateSalaryConfig, createSalary,
       addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
       deployUpdate, setCommission, uploadProof, apiFetch

@@ -6,7 +6,9 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   onAuthStateChanged,
-  signOut
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -28,15 +30,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = { id: firebaseUser.uid, ...userDoc.data() } as any;
-          setUser(userData);
-          localStorage.setItem('uzbechka_user', JSON.stringify(userData));
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = { id: firebaseUser.uid, ...userDoc.data() } as any;
+            setUser(userData);
+            localStorage.setItem('uzbechka_user', JSON.stringify(userData));
+          } else {
+            // If they are logged in to Firebase but no doc exists, try to get from localStorage
+            const localUser = localStorage.getItem('uzbechka_user');
+            if (localUser) {
+              const parsed = JSON.parse(localUser);
+              if (parsed.id === firebaseUser.uid) {
+                setUser(parsed);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching user doc:', e);
         }
       } else {
-        setUser(null);
-        localStorage.removeItem('uzbechka_user');
+        // If not logged in to Firebase, check if we have a local session
+        const localUser = localStorage.getItem('uzbechka_user');
+        if (localUser) {
+          const parsed = JSON.parse(localUser);
+          // Try to re-auth with Firebase if we have a local session
+          const email = `${parsed.phone.replace('+', '')}@uzbechka.com`;
+          try {
+            await signInWithEmailAndPassword(auth, email, parsed.password || 'default_pass');
+          } catch (e) {
+            console.warn('Could not re-auth with Firebase:', e);
+          }
+          setUser(parsed);
+        } else {
+          setUser(null);
+        }
       }
       setLoading(false);
     });
@@ -74,6 +102,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     if (!res.ok) throw new Error('Invalid credentials');
     const data = await res.json();
+    
+    // Sync with Firebase Auth
+    const email = `${phone.replace('+', '')}@uzbechka.com`;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e: any) {
+      if (e.code === 'auth/user-not-found') {
+        try {
+          const credential = await createUserWithEmailAndPassword(auth, email, password);
+          // Create Firestore doc for the user
+          await setDoc(doc(db, 'users', credential.user.uid), {
+            name: data.name,
+            phone: data.phone,
+            role: data.role,
+            createdAt: new Date().toISOString()
+          });
+        } catch (createErr) {
+          console.error('Failed to create Firebase user:', createErr);
+        }
+      } else {
+        console.error('Firebase Auth error:', e);
+      }
+    }
+
     setUser(data);
     localStorage.setItem('uzbechka_user', JSON.stringify(data));
   };
@@ -86,6 +138,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     if (!res.ok) throw new Error('Registration failed');
     const data = await res.json();
+    
+    // Sync with Firebase Auth
+    const email = `${phone.replace('+', '')}@uzbechka.com`;
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', credential.user.uid), {
+        name,
+        phone,
+        role: role || 'client',
+        createdAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.error('Failed to sync registration with Firebase:', e);
+    }
+
     setUser(data);
     localStorage.setItem('uzbechka_user', JSON.stringify(data));
   };

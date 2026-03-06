@@ -254,6 +254,14 @@ try {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (courier_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      amount REAL NOT NULL,
+      category TEXT,
+      date DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Migrations for existing tables
@@ -618,12 +626,28 @@ async function startServer() {
 
   app.post("/api/orders", (req, res) => {
     const { clientId, agentId, items, totalPrice, paymentType, location, latitude, longitude } = req.body;
-    const info = db.prepare("INSERT INTO orders (clientId, agentId, totalPrice, paymentType, location, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-      clientId, agentId || null, totalPrice, paymentType, location, latitude || null, longitude || null
-    );
-    const orderId = info.lastInsertRowid;
-    items.forEach((item: any) => db.prepare("INSERT INTO order_items (orderId, productId, quantity, price) VALUES (?, ?, ?, ?)").run(orderId, item.id || item.productId, item.quantity, item.price));
-    res.json({ id: orderId });
+    try {
+      db.transaction(() => {
+        const info = db.prepare("INSERT INTO orders (clientId, agentId, totalPrice, paymentType, location, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+          clientId, agentId || null, totalPrice, paymentType, location, latitude || null, longitude || null
+        );
+        const orderId = info.lastInsertRowid;
+        
+        items.forEach((item: any) => {
+          const productId = item.id || item.productId;
+          // Add to order items
+          db.prepare("INSERT INTO order_items (orderId, productId, quantity, price) VALUES (?, ?, ?, ?)").run(orderId, productId, item.quantity, item.price);
+          
+          // Reduce stock
+          db.prepare("UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?").run(item.quantity, productId);
+        });
+        
+        res.json({ id: orderId });
+      })();
+    } catch (e) {
+      console.error("Order creation failed:", e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.patch("/api/orders/:id", (req, res) => {
@@ -642,16 +666,50 @@ async function startServer() {
 
   app.post("/api/settings", (req, res) => {
     const updates = req.body;
-    try {
-      db.transaction(() => {
-        for (const [key, value] of Object.entries(updates)) {
-          db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
-        }
-      })();
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ error: e.message });
-    }
+    const stmt = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+    db.transaction(() => {
+      for (const [key, value] of Object.entries(updates)) {
+        stmt.run(key, String(value));
+      }
+    })();
+    res.json({ success: true });
+  });
+
+  // Accounting
+  app.get("/api/admin/accounting", (req, res) => {
+    const income = db.prepare("SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = 'paid'").get().total || 0;
+    const salaryExpenses = db.prepare("SELECT SUM(amount) as total FROM salaries").get().total || 0;
+    const otherExpenses = db.prepare("SELECT SUM(amount) as total FROM expenses").get().total || 0;
+    const totalExpenses = salaryExpenses + otherExpenses;
+    
+    const expensesList = db.prepare("SELECT * FROM expenses ORDER BY date DESC").all();
+    const salariesList = db.prepare(`
+      SELECT s.*, u.name as userName 
+      FROM salaries s 
+      JOIN users u ON s.userId = u.id 
+      ORDER BY s.createdAt DESC
+    `).all();
+
+    res.json({
+      income,
+      expenses: totalExpenses,
+      profit: income - totalExpenses,
+      salaryExpenses,
+      otherExpenses,
+      expensesList,
+      salariesList
+    });
+  });
+
+  app.post("/api/admin/expenses", (req, res) => {
+    const { title, amount, category } = req.body;
+    const result = db.prepare("INSERT INTO expenses (title, amount, category) VALUES (?, ?, ?)").run(title, amount, category);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.delete("/api/admin/expenses/:id", (req, res) => {
+    db.prepare("DELETE FROM expenses WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
   });
 
   // Telegram API

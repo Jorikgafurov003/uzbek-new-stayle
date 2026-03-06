@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   LayoutDashboard, Package, ShoppingBag, Users, LogOut, 
-  TrendingUp, CheckCircle, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote
+  TrendingUp, CheckCircle, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote, Calculator
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
@@ -167,14 +167,14 @@ const MapboxTracker: React.FC<{ users: any[], orders: any[], settings: any, t: a
 export const AdminApp: React.FC = () => {
   const { 
     products, categories, orders, stats, users, banners, settings, debts, systemErrors,
-    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries,
-    addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, updateOrder, deleteOrder, deleteUser, updateUser, addUser, addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, speak,
-    deployUpdate, setCommission, updateSalaryConfig, createSalary, fixSystemError, apiFetch, refreshData
+    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, accounting,
+    addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, updateOrder, deleteOrder, deleteUser, updateUser, addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, speak,
+    deployUpdate, setCommission, updateSalaryConfig, createSalary, fixSystemError, apiFetch, refreshData, addExpense, deleteExpense
   } = useData();
   const { logout, user: currentUser } = useAuth();
   const { register } = useAuth();
   const { t, language, setLanguage } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries' | 'accounting'>('dashboard');
   const [telegramMessage, setTelegramMessage] = useState('');
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [topStats, setTopStats] = useState<any>(null);
@@ -200,6 +200,7 @@ export const AdminApp: React.FC = () => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAddBanner, setShowAddBanner] = useState(false);
   const [showAddSalary, setShowAddSalary] = useState(false);
+  const [showAddExpense, setShowAddExpense] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [selectedOrderForMap, setSelectedOrderForMap] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -309,6 +310,26 @@ export const AdminApp: React.FC = () => {
 
       {/* Content */}
       <main className="flex-1 p-4 pb-24 overflow-y-auto">
+        {/* Banner Carousel - Visible on all tabs */}
+        {banners.length > 0 && (
+          <div className="mb-8 overflow-hidden rounded-[2.5rem] shadow-xl border border-white/20">
+            <div className="flex animate-marquee whitespace-nowrap">
+              {[...banners, ...banners].map((banner, idx) => (
+                <div key={`${banner.id}-${idx}`} className="inline-block w-full md:w-[600px] h-48 relative flex-shrink-0 mr-4">
+                  <img src={banner.imageUrl} className="absolute inset-0 w-full h-full object-cover rounded-[2.5rem]" referrerPolicy="no-referrer" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6 rounded-[2.5rem]">
+                    <h3 className="text-white font-black text-lg uppercase tracking-wider">{banner.title}</h3>
+                    {banner.link && (
+                      <a href={banner.link} className="text-gold text-xs font-bold uppercase tracking-widest mt-1 hover:underline">
+                        Подробнее →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {activeTab === 'dashboard' && stats && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             {/* Bento Grid Header Stats */}
@@ -1224,12 +1245,27 @@ export const AdminApp: React.FC = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">AI Business Director</h2>
-              <button 
-                onClick={() => refreshData()}
-                className="p-2 bg-white border border-stone-200 rounded-xl text-stone-400 hover:text-gold transition-all"
-              >
-                <TrendingUp size={20} />
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={async () => {
+                    const errorsToFix = systemErrors.filter(e => e.status === 'pending');
+                    for (const err of errorsToFix) {
+                      await fixSystemError(err.id);
+                    }
+                    speak("Все системные ошибки исправлены автоматически");
+                    refreshData();
+                  }}
+                  className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold flex items-center gap-2 shadow-md hover:bg-green-600 transition-all"
+                >
+                  <Sparkles size={18} /> Исправить все ошибки
+                </button>
+                <button 
+                  onClick={() => refreshData()}
+                  className="p-2 bg-white border border-stone-200 rounded-xl text-stone-400 hover:text-gold transition-all"
+                >
+                  <TrendingUp size={20} />
+                </button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1623,6 +1659,77 @@ export const AdminApp: React.FC = () => {
           </motion.div>
         )}
 
+        {activeTab === 'accounting' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Бухгалтерия</h2>
+              <button 
+                onClick={() => setShowAddExpense(true)}
+                className="px-6 py-3 bg-red-500 text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-red-500/20 hover:scale-105 transition-all"
+              >
+                <Plus size={20} />
+                Добавить расход
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest mb-1">Приход (Выручка)</p>
+                <h3 className="text-2xl font-black text-green-600">{(accounting?.income || 0).toLocaleString()} UZS</h3>
+              </div>
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest mb-1">Расход (Затраты)</p>
+                <h3 className="text-2xl font-black text-red-600">{(accounting?.totalExpenses || 0).toLocaleString()} UZS</h3>
+              </div>
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-stone-100">
+                <p className="text-stone-400 text-[10px] font-black uppercase tracking-widest mb-1">Чистая прибыль</p>
+                <h3 className="text-2xl font-black text-uzum-primary">{(accounting?.netProfit || 0).toLocaleString()} UZS</h3>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[2rem] shadow-sm border border-stone-100 overflow-hidden">
+              <div className="p-6 border-b border-stone-50 flex justify-between items-center">
+                <h3 className="font-black text-stone-800 uppercase tracking-wider">История расходов</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-stone-50 border-b">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Дата</th>
+                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Категория</th>
+                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Описание</th>
+                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Сумма</th>
+                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {(accounting?.expenses || []).map((exp: any) => (
+                      <tr key={exp.id} className="hover:bg-stone-50 transition-colors">
+                        <td className="p-4 text-sm">{new Date(exp.date).toLocaleDateString()}</td>
+                        <td className="p-4">
+                          <span className="px-2 py-1 bg-stone-100 text-stone-600 text-[10px] font-black uppercase rounded-lg">
+                            {exp.category}
+                          </span>
+                        </td>
+                        <td className="p-4 text-sm text-stone-600">{exp.description}</td>
+                        <td className="p-4 font-bold text-red-500">{exp.amount.toLocaleString()} UZS</td>
+                        <td className="p-4">
+                          <button 
+                            onClick={() => handleConfirm(() => deleteExpense(exp.id), 'Удалить расход', 'Вы уверены?')}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'tracker' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <h2 className="text-2xl font-bold">{t('tracker')}</h2>
@@ -1660,6 +1767,7 @@ export const AdminApp: React.FC = () => {
           { id: 'security', icon: <AlertCircle size={20} />, label: 'Security' },
           { id: 'deploy', icon: <Play size={20} />, label: 'Deploy' },
           { id: 'tracker', icon: <Navigation size={20} />, label: t('tracker') },
+          { id: 'accounting', icon: <Calculator size={20} />, label: 'Accounting' },
           { id: 'telegram', icon: <Send size={20} />, label: 'Telegram' },
           { id: 'salaries', icon: <Banknote size={20} />, label: 'Salaries' },
           { id: 'users', icon: <Users size={20} />, label: t('users') },
@@ -1689,6 +1797,58 @@ export const AdminApp: React.FC = () => {
       />
 
       {/* Add Salary Modal */}
+      <AnimatePresence>
+        {showAddExpense && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-stone-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Добавить Расход</h3>
+                <button onClick={() => setShowAddExpense(false)} className="text-stone-400"><X /></button>
+              </div>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                await addExpense({
+                  title: formData.get('title') as string,
+                  amount: Number(formData.get('amount')),
+                  category: formData.get('category') as string,
+                });
+                speak(`Расход добавлен`);
+                setShowAddExpense(false);
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Название</label>
+                  <input name="title" required className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" placeholder="Напр: Аренда офиса" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сумма (UZS)</label>
+                  <input name="amount" type="number" required className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Категория</label>
+                  <select name="category" className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50">
+                    <option value="rent">Аренда</option>
+                    <option value="utility">Коммунальные</option>
+                    <option value="marketing">Маркетинг</option>
+                    <option value="inventory">Закуп товара</option>
+                    <option value="other">Прочее</option>
+                  </select>
+                </div>
+                <button type="submit" className="w-full gold-gradient text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg mt-4">
+                  Сохранить Расход
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showAddSalary && (
           <motion.div 
@@ -2187,7 +2347,12 @@ export const AdminApp: React.FC = () => {
                   if (editingUser) {
                     await updateUser(editingUser.id, data);
                   } else {
-                    await addUser(data);
+                    await apiFetch('/api/auth/register', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(data),
+                    });
+                    await refreshData();
                   }
                   setShowAddUser(false);
                   setEditingUser(null);
@@ -2325,6 +2490,64 @@ export const AdminApp: React.FC = () => {
 
                 <button type="submit" className="w-full gold-gradient text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl hover:shadow-gold/30 transition-all active:scale-95">
                   Подтвердить Выплату
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showAddExpense && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[3rem] w-full max-w-md p-8 shadow-2xl relative overflow-hidden"
+            >
+              <button onClick={() => setShowAddExpense(false)} className="absolute top-6 right-6 p-2 hover:bg-stone-100 rounded-full transition-colors">
+                <X size={24} className="text-stone-400" />
+              </button>
+              
+              <h3 className="text-2xl font-bold mb-6">Добавить расход</h3>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const expense = {
+                  category: formData.get('category') as string,
+                  amount: Number(formData.get('amount')),
+                  description: formData.get('description') as string,
+                  date: new Date().toISOString()
+                };
+                
+                await addExpense(expense);
+                setShowAddExpense(false);
+                speak('Расход успешно добавлен');
+              }} className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Категория</label>
+                  <select name="category" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none">
+                    <option value="rent">Аренда</option>
+                    <option value="salary">Зарплата</option>
+                    <option value="marketing">Маркетинг</option>
+                    <option value="logistics">Логистика</option>
+                    <option value="other">Другое</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сумма (UZS)</label>
+                  <input name="amount" type="number" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Описание</label>
+                  <textarea name="description" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium h-24 resize-none" />
+                </div>
+
+                <button type="submit" className="w-full bg-red-500 text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl hover:shadow-red-500/30 transition-all active:scale-95">
+                  Добавить расход
                 </button>
               </form>
             </motion.div>

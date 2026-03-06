@@ -59,21 +59,6 @@ export const ClientApp: React.FC = () => {
   };
 
   useEffect(() => {
-    // Request permissions
-    const requestPermissions = async () => {
-      try {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(() => {}, () => {});
-        }
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).catch(() => {});
-        }
-      } catch (e) {}
-    };
-    requestPermissions();
-  }, []);
-
-  useEffect(() => {
     if (banners.length > 0) {
       const timer = setInterval(() => {
         setCurrentBanner(prev => (prev + 1) % banners.length);
@@ -501,7 +486,7 @@ export const ClientApp: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-medium text-uzum-text truncate">{item.product.name}</h4>
                         <p className="text-uzum-primary font-bold text-sm mt-0.5">
-                          {(item.product.discountPrice || item.product.price || 0).toLocaleString()} сум
+                          {((item.product.discountPrice || item.product.price) || 0).toLocaleString()} сум
                         </p>
                       </div>
                       <div className="flex items-center gap-3 bg-uzum-bg rounded-lg p-1.5">
