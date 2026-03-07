@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { 
   LayoutDashboard, Package, ShoppingBag, Users, LogOut, 
-  TrendingUp, CheckCircle, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote, Calculator
+  TrendingUp, CheckCircle, Check, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote, Calculator
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
@@ -29,73 +29,109 @@ import { apiFetch } from '../utils/api';
 
 
 
-import { BUKHARA_CENTER } from '../context/DataContext';
+const BUKHARA_CENTER: [number, number] = [39.7747, 64.4286];
+const WAREHOUSE_LOCATION: [number, number] = [39.7750, 64.4300]; // Example warehouse location
 import { courierIcon, agentIcon, storeIcon } from '../utils/MapIcons';
 
 // Mapbox Tracker Component
 const MapboxTracker: React.FC<{ users: any[], orders: any[], settings: any, t: any }> = ({ users, orders, settings, t }) => {
+  const [webGlSupported, setWebGlSupported] = React.useState(true);
   const mapContainer = React.useRef<HTMLDivElement>(null);
   const map = React.useRef<mapboxgl.Map | null>(null);
   const markers = React.useRef<{ [key: string]: mapboxgl.Marker }>({});
 
   React.useEffect(() => {
+    if (!mapboxgl.supported()) {
+      setWebGlSupported(false);
+      return;
+    }
+
     if (!mapContainer.current) return;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [BUKHARA_CENTER[1], BUKHARA_CENTER[0]], // Mapbox uses [lng, lat]
-      zoom: 13,
-      pitch: 45,
-      bearing: -17.6,
-      antialias: true
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [BUKHARA_CENTER[1], BUKHARA_CENTER[0]], // Mapbox uses [lng, lat]
+        zoom: 13,
+        pitch: 45,
+        bearing: -17.6,
+        antialias: true
+      });
 
-    map.current.addControl(new mapboxgl.NavigationControl());
+      map.current.addControl(new mapboxgl.NavigationControl());
 
-    map.current.on('load', () => {
-      if (!map.current) return;
-      
-      // Add 3D buildings layer
-      const layers = map.current.getStyle().layers;
-      const labelLayerId = layers?.find(
-        (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
-      )?.id;
+      map.current.on('load', () => {
+        if (!map.current) return;
+        
+        // Add Warehouse Marker
+        const warehouseEl = document.createElement('div');
+        warehouseEl.className = 'warehouse-marker';
+        warehouseEl.style.width = '40px';
+        warehouseEl.style.height = '40px';
+        warehouseEl.style.backgroundColor = '#1c1917';
+        warehouseEl.style.borderRadius = '12px';
+        warehouseEl.style.display = 'flex';
+        warehouseEl.style.alignItems = 'center';
+        warehouseEl.style.justifyContent = 'center';
+        warehouseEl.style.color = 'white';
+        warehouseEl.style.boxShadow = '0 0 15px rgba(0,0,0,0.5)';
+        warehouseEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
 
-      map.current.addLayer(
-        {
-          'id': 'add-3d-buildings',
-          'source': 'composite',
-          'source-layer': 'building',
-          'filter': ['==', 'extrude', 'true'],
-          'type': 'fill-extrusion',
-          'minzoom': 15,
-          'paint': {
-            'fill-extrusion-color': '#aaa',
-            'fill-extrusion-height': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              15,
-              0,
-              15.05,
-              ['get', 'height']
-            ],
-            'fill-extrusion-base': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              15,
-              0,
-              15.05,
-              ['get', 'min_height']
-            ],
-            'fill-extrusion-opacity': 0.6
-          }
-        },
-        labelLayerId
-      );
-    });
+        new mapboxgl.Marker(warehouseEl)
+          .setLngLat([WAREHOUSE_LOCATION[1], WAREHOUSE_LOCATION[0]])
+          .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(
+            `<div class="p-2">
+              <h4 class="font-bold">Склад / Склад</h4>
+              <p class="text-xs">Основной пункт отгрузки</p>
+            </div>`
+          ))
+          .addTo(map.current);
+
+        // Add 3D buildings layer
+        const layers = map.current.getStyle().layers;
+        const labelLayerId = layers?.find(
+          (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
+        )?.id;
+
+        map.current.addLayer(
+          {
+            'id': 'add-3d-buildings',
+            'source': 'composite',
+            'source-layer': 'building',
+            'filter': ['==', 'extrude', 'true'],
+            'type': 'fill-extrusion',
+            'minzoom': 15,
+            'paint': {
+              'fill-extrusion-color': '#aaa',
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15,
+                0,
+                15.05,
+                ['get', 'height']
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15,
+                0,
+                15.05,
+                ['get', 'min_height']
+              ],
+              'fill-extrusion-opacity': 0.6
+            }
+          },
+          labelLayerId
+        );
+      });
+    } catch (e) {
+      console.error("Mapbox initialization failed:", e);
+      setWebGlSupported(false);
+    }
 
     return () => {
       map.current?.remove();
@@ -103,7 +139,7 @@ const MapboxTracker: React.FC<{ users: any[], orders: any[], settings: any, t: a
   }, []);
 
   React.useEffect(() => {
-    if (!map.current) return;
+    if (!map.current || !webGlSupported) return;
 
     // Update markers
     const activeUsers = users.filter(u => (u.role === 'agent' || u.role === 'courier') && u.lat != null && u.lng != null);
@@ -159,22 +195,88 @@ const MapboxTracker: React.FC<{ users: any[], orders: any[], settings: any, t: a
         markers.current[id] = marker;
       }
     });
-  }, [users]);
+  }, [users, webGlSupported]);
+
+  if (!webGlSupported) {
+    return (
+      <div className="w-full h-full rounded-3xl overflow-hidden relative">
+        <MapContainer center={BUKHARA_CENTER} zoom={13} style={{ height: '100%', width: '100%' }}>
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <Marker position={WAREHOUSE_LOCATION} icon={L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="background-color: #1c1917; color: white; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+          })}>
+            <Popup>
+              <div className="p-1">
+                <h4 className="font-bold">Склад</h4>
+                <p className="text-xs">Основной пункт отгрузки</p>
+              </div>
+            </Popup>
+          </Marker>
+          {users.filter(u => (u.role === 'agent' || u.role === 'courier') && u.lat != null && u.lng != null).map(u => (
+            <Marker 
+              key={u.id} 
+              position={[u.lat, u.lng]}
+              icon={L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-image: url(${u.photo || 'https://picsum.photos/seed/user/50/50'}); width: 40px; height: 40px; background-size: cover; border-radius: 50%; border: 3px solid ${u.role === 'agent' ? '#3b82f6' : '#f97316'}; box-shadow: 0 0 10px rgba(0,0,0,0.3); position: relative;">
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 60000) ? '#22c55e' : '#94a3b8'}; position: absolute; bottom: 0; right: 0; border: 2px solid white;"></div>
+                </div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+              })}
+            >
+              <Popup>
+                <div className="p-1">
+                  <h4 className="font-bold">{u.name}</h4>
+                  <p className="text-xs">{u.role}</p>
+                  <p className="text-xs">{u.phone}</p>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+        <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl border border-stone-200 shadow-lg flex items-center gap-2">
+          <AlertCircle size={14} className="text-amber-500" />
+          <span className="text-[10px] font-bold text-stone-600 uppercase tracking-widest">WebGL Fallback Mode</span>
+        </div>
+      </div>
+    );
+  }
 
   return <div ref={mapContainer} className="w-full h-full rounded-3xl overflow-hidden" />;
 };
+
+const UserProfileMiniature: React.FC<{ user: any; size?: number }> = ({ user, size = 32 }) => (
+  <div 
+    className="rounded-full bg-stone-100 overflow-hidden border border-stone-200 flex-shrink-0"
+    style={{ width: size, height: size }}
+  >
+    {user?.photo ? (
+      <img src={user.photo} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+    ) : (
+      <div className="w-full h-full flex items-center justify-center text-stone-300">
+        <User size={size * 0.6} />
+      </div>
+    )}
+  </div>
+);
 
 export const AdminApp: React.FC = () => {
   const { 
     products, categories, orders, stats, users, banners, settings, debts, systemErrors,
     insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, accounting,
     addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, updateOrder, deleteOrder, deleteUser, updateUser, addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, speak,
-    deployUpdate, setCommission, updateSalaryConfig, createSalary, fixSystemError, apiFetch, refreshData, addExpense, deleteExpense
+    deployUpdate, setCommission, updateSalaryConfig, createSalary, fixSystemError, apiFetch, refreshData, addExpense, deleteExpense,
+    payDebt, increaseDebt
   } = useData();
   const { logout, user: currentUser } = useAuth();
   const { register } = useAuth();
   const { t, language, setLanguage } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries' | 'accounting'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries' | 'accounting' | 'warehouse'>('dashboard');
+  const [debtSubTab, setDebtSubTab] = useState<'list' | 'history'>('list');
   const [telegramMessage, setTelegramMessage] = useState('');
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [topStats, setTopStats] = useState<any>(null);
@@ -747,12 +849,7 @@ export const AdminApp: React.FC = () => {
                         ) : (
                           <span className="text-gold-dark font-black text-lg">{(product.price || 0).toLocaleString()} <span className="text-[10px]">UZS</span></span>
                         )}
-                        <div className="flex items-center gap-1 mt-1">
-                          <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Склад:</span>
-                          <span className={`text-[10px] font-black ${product.stock && product.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {product.stock || 0} шт
-                          </span>
-                        </div>
+                        {/* Stock removed as per user request, moved to Warehouse tab */}
                       </div>
                       
                       <button 
@@ -980,6 +1077,16 @@ export const AdminApp: React.FC = () => {
                           <option value="delivered">Delivered</option>
                           <option value="cancelled">Cancelled</option>
                         </select>
+                        <button 
+                          onClick={() => handleConfirm(() => {
+                            deleteOrder(order.id);
+                            speak(`Заказ ${order.id} удален`);
+                          }, 'Удалить заказ', 'Вы уверены, что хотите удалить этот заказ? Это действие вернет товар на склад.')}
+                          className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                          title="Delete Order"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1184,6 +1291,38 @@ export const AdminApp: React.FC = () => {
                         <Truck size={12} /> {u.carType}
                       </span>
                     )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'warehouse' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Складской учет</h2>
+              <div className="flex gap-2">
+                <span className="px-3 py-1 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-500 flex items-center gap-2">
+                  Товаров: {products.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {products.map(product => (
+                <div key={product.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100 flex items-center gap-4">
+                  <img src={product.image} className="w-16 h-16 rounded-2xl object-cover" />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-stone-800">{product.name}</h3>
+                    <p className="text-xs text-stone-400 uppercase tracking-widest font-black">{categories.find(c => c.id === product.categoryId)?.name}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                        product.stock <= 10 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'
+                      }`}>
+                        Остаток: {product.stock} {product.unit}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1491,9 +1630,7 @@ export const AdminApp: React.FC = () => {
                     <div key={emp.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-stone-100">
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-stone-100 overflow-hidden border border-stone-200">
-                            {emp.photo ? <img src={emp.photo} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-stone-300"><User size={20} /></div>}
-                          </div>
+                          <UserProfileMiniature user={emp} size={48} />
                           <div>
                             <h4 className="font-bold text-stone-800">{emp.name}</h4>
                             <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
@@ -1507,7 +1644,7 @@ export const AdminApp: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="space-y-1">
                           <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest block">Оклад (Фикс)</label>
                           <input 
@@ -1534,21 +1671,24 @@ export const AdminApp: React.FC = () => {
                             className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-gold"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-stone-400 uppercase tracking-widest block">Рабочих дней</label>
-                          <input 
-                            type="number" 
-                            defaultValue={config.workingDays}
-                            onBlur={(e) => {
-                              const val = Number(e.target.value);
-                              updateSalaryConfig(emp.id, { ...config, workingDays: val });
-                            }}
-                            className="w-full p-2 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-gold"
-                          />
+                        <div className="bg-gold/5 p-2 rounded-xl border border-gold/10 flex flex-col justify-center items-center">
+                          <span className="text-[8px] font-black text-gold-dark uppercase tracking-widest">Продажи</span>
+                          <span className="text-xs font-bold text-gold-dark">{totalSales.toLocaleString()}</span>
                         </div>
                         <div className="bg-gold/5 p-2 rounded-xl border border-gold/10 flex flex-col justify-center items-center">
-                          <span className="text-[8px] font-black text-gold-dark uppercase tracking-widest">От продаж</span>
+                          <span className="text-[8px] font-black text-gold-dark uppercase tracking-widest">Комиссия</span>
                           <span className="text-xs font-bold text-gold-dark">{commission.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-center">
+                           <button 
+                            onClick={() => {
+                              setShowAddSalary(true);
+                              // Pre-fill salary data logic would go here
+                            }}
+                            className="w-full py-2 bg-stone-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-800 transition-all"
+                          >
+                            Выплатить
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1582,80 +1722,145 @@ export const AdminApp: React.FC = () => {
 
         {activeTab === 'debts' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <h2 className="text-2xl font-bold">{t('debts')}</h2>
-            <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-stone-50 border-b">
-                    <tr>
-                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('client')}</th>
-                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Ответственный</th>
-                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('debtAmount')}</th>
-                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('dueDate')}</th>
-                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('status')}</th>
-                      <th className="p-4 text-xs font-bold text-stone-400 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                      {debts.map(debt => (
-                        <tr key={debt.id} className="hover:bg-stone-50 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-stone-100 overflow-hidden border border-stone-200 flex-shrink-0">
-                                {debt.clientPhoto ? (
-                                  <img src={debt.clientPhoto} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-stone-400">
-                                    <User size={16} />
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold">{debt.clientName}</p>
-                                <p className="text-xs text-stone-400">{debt.clientPhone}</p>
-                              </div>
-                            </div>
-                          </td>
-                        <td className="p-4">
-                          {debt.courierName ? (
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-[9px] font-black uppercase rounded-md border border-orange-100">Курьер</span>
-                              <span className="text-xs font-bold text-stone-600">{debt.courierName}</span>
-                            </div>
-                          ) : debt.agentName ? (
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-md border border-blue-100">Агент</span>
-                              <span className="text-xs font-bold text-stone-600">{debt.agentName}</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-stone-400">-</span>
-                          )}
-                        </td>
-                        <td className="p-4 font-bold text-red-500">{(debt.amount || 0).toLocaleString()} UZS</td>
-                        <td className="p-4 text-xs font-medium">{debt.dueDate ? new Date(debt.dueDate).toLocaleDateString() : '-'}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                            debt.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                          }`}>
-                            {debt.status}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          {debt.status === 'pending' && (
-                            <button 
-                              onClick={() => handleConfirm(() => updateDebt(debt.id, { status: 'paid' }), t('repay'), t('repayConfirm'))}
-                              className="px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-bold shadow-md hover:bg-green-600 transition-all"
-                            >
-                              {t('repay')}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">{t('debts')}</h2>
+              <div className="flex bg-stone-100 p-1 rounded-xl">
+                <button 
+                  onClick={() => setDebtSubTab('list')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${debtSubTab === 'list' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400'}`}
+                >
+                  Список долгов
+                </button>
+                <button 
+                  onClick={() => setDebtSubTab('history')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${debtSubTab === 'history' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400'}`}
+                >
+                  История повышений
+                </button>
               </div>
             </div>
+
+            {debtSubTab === 'list' ? (
+              <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-stone-50 border-b">
+                      <tr>
+                        <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('client')}</th>
+                        <th className="p-4 text-xs font-bold text-stone-400 uppercase">Ответственный</th>
+                        <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('debtAmount')}</th>
+                        <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('dueDate')}</th>
+                        <th className="p-4 text-xs font-bold text-stone-400 uppercase">{t('status')}</th>
+                        <th className="p-4 text-xs font-bold text-stone-400 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {debts.map(debt => (
+                          <tr key={debt.id} className="hover:bg-stone-50 transition-colors">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <UserProfileMiniature user={{ photo: debt.clientPhoto, name: debt.clientName }} size={40} />
+                                <div>
+                                  <p className="text-sm font-bold">{debt.clientName}</p>
+                                  <p className="text-xs text-stone-400">{debt.clientPhone}</p>
+                                </div>
+                              </div>
+                            </td>
+                          <td className="p-4">
+                            {debt.courierName ? (
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-[9px] font-black uppercase rounded-md border border-orange-100">Курьер</span>
+                                <span className="text-xs font-bold text-stone-600">{debt.courierName}</span>
+                              </div>
+                            ) : debt.agentName ? (
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-md border border-blue-100">Агент</span>
+                                <span className="text-xs font-bold text-stone-600">{debt.agentName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-stone-400 italic">Не указан</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-black text-stone-800">{(debt.amount || 0).toLocaleString()} UZS</p>
+                              {debt.increasedAmount > 0 && (
+                                <p className="text-[10px] font-bold text-red-500">+{debt.increasedAmount.toLocaleString()} ({debt.increaseReason})</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 text-xs font-medium">{debt.dueDate ? new Date(debt.dueDate).toLocaleDateString() : '-'}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              debt.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                            }`}>
+                              {debt.status === 'paid' ? 'Оплачено' : 'Долг'}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex gap-2">
+                              {debt.status !== 'paid' && (
+                                <>
+                                  <button 
+                                    onClick={() => {
+                                      if(confirm(`Подтвердить оплату долга от ${debt.clientName}?`)) {
+                                        payDebt(debt.id);
+                                        speak(`Долг от ${debt.clientName} погашен`);
+                                      }
+                                    }}
+                                    className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all shadow-sm"
+                                    title="Погасить долг"
+                                  >
+                                    <Check size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      const amount = prompt("Введите сумму увеличения долга:");
+                                      const reason = prompt("Причина увеличения:");
+                                      if(amount && reason) {
+                                        increaseDebt(debt.id, Number(amount), reason);
+                                        speak(`Долг ${debt.clientName} увеличен на ${amount}`);
+                                      }
+                                    }}
+                                    className="p-2 bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-all shadow-sm"
+                                    title="Увеличить долг"
+                                  >
+                                    <Plus size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl shadow-sm border border-stone-100 p-6">
+                <div className="space-y-4">
+                  {debts.filter(d => d.increasedAmount > 0).map(debt => (
+                    <div key={debt.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                      <div className="flex items-center gap-4">
+                        <UserProfileMiniature user={{ photo: debt.clientPhoto, name: debt.clientName }} size={48} />
+                        <div>
+                          <h4 className="font-bold text-stone-800">{debt.clientName}</h4>
+                          <p className="text-xs text-stone-500">Причина: {debt.increaseReason}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-red-600">+{debt.increasedAmount.toLocaleString()} UZS</p>
+                        <p className="text-[10px] text-stone-400 uppercase font-bold tracking-widest">Увеличен</p>
+                      </div>
+                    </div>
+                  ))}
+                  {debts.filter(d => d.increasedAmount > 0).length === 0 && (
+                    <div className="text-center py-12 text-stone-400 italic">Истории повышений пока нет</div>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -1770,6 +1975,7 @@ export const AdminApp: React.FC = () => {
           { id: 'accounting', icon: <Calculator size={20} />, label: 'Accounting' },
           { id: 'telegram', icon: <Send size={20} />, label: 'Telegram' },
           { id: 'salaries', icon: <Banknote size={20} />, label: 'Salaries' },
+          { id: 'warehouse', icon: <Package size={20} />, label: 'Warehouse' },
           { id: 'users', icon: <Users size={20} />, label: t('users') },
           { id: 'settings', icon: <SettingsIcon size={20} />, label: t('settings') },
         ].map(item => (
@@ -2450,33 +2656,60 @@ export const AdminApp: React.FC = () => {
                 const salary = {
                   userId: Number(formData.get('userId')),
                   amount: Number(formData.get('amount')),
-                  type: formData.get('type'),
-                  period: formData.get('period'),
+                  type: formData.get('type') as string,
+                  period: formData.get('period') as string,
+                  baseSalary: Number(formData.get('baseSalary') || 0),
+                  salesAmount: Number(formData.get('salesAmount') || 0),
+                  salesPercentage: Number(formData.get('salesPercentage') || 0),
+                  bonus: Number(formData.get('bonus') || 0),
+                  advance: Number(formData.get('advance') || 0),
                   date: new Date().toISOString()
                 };
                 
                 await createSalary(salary);
                 setShowAddSalary(false);
                 speak('Выплата успешно зарегистрирована');
-              }} className="space-y-6">
-                <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сотрудник</label>
-                  <select name="userId" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none">
-                    <option value="">Выберите сотрудника</option>
-                    {users.filter(u => u.role === 'agent' || u.role === 'courier').map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                    ))}
-                  </select>
+              }} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Сотрудник</label>
+                    <select name="userId" required className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none text-sm">
+                      <option value="">Выберите сотрудника</option>
+                      {users.filter(u => u.role === 'agent' || u.role === 'courier').map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Оклад</label>
+                    <input name="baseSalary" type="number" className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Продажи</label>
+                    <input name="salesAmount" type="number" className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">% Продаж</label>
+                    <input name="salesPercentage" type="number" className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Бонус</label>
+                    <input name="bonus" type="number" className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Аванс</label>
+                    <input name="advance" type="number" className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Итого (UZS)</label>
+                    <input name="amount" type="number" required className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Сумма (UZS)</label>
-                  <input name="amount" type="number" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Тип Выплаты</label>
-                  <select name="type" className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none">
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Тип Выплаты</label>
+                  <select name="type" className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium appearance-none text-sm">
                     <option value="salary">Основная Зарплата</option>
                     <option value="bonus">Бонус / Премия</option>
                     <option value="advance">Аванс</option>
@@ -2484,8 +2717,8 @@ export const AdminApp: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Период</label>
-                  <input name="period" placeholder="Напр: Октябрь 2023" required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1">Период</label>
+                  <input name="period" placeholder="Напр: Октябрь 2023" required className="w-full p-3 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium text-sm" />
                 </div>
 
                 <button type="submit" className="w-full gold-gradient text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl hover:shadow-gold/30 transition-all active:scale-95">

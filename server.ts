@@ -139,8 +139,11 @@ try {
       clientId INTEGER NOT NULL,
       orderId INTEGER,
       amount REAL NOT NULL,
+      increasedAmount REAL DEFAULT 0,
+      increaseReason TEXT,
       dueDate DATETIME,
       status TEXT NOT NULL DEFAULT 'pending',
+      paidAt DATETIME,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (clientId) REFERENCES users(id),
       FOREIGN KEY (orderId) REFERENCES orders(id)
@@ -239,9 +242,15 @@ try {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userId INTEGER NOT NULL,
       amount REAL NOT NULL,
+      baseSalary REAL DEFAULT 0,
+      salesAmount REAL DEFAULT 0,
+      salesPercentage REAL DEFAULT 0,
+      bonus REAL DEFAULT 0,
+      advance REAL DEFAULT 0,
       type TEXT NOT NULL,
       period TEXT NOT NULL,
       status TEXT DEFAULT 'pending',
+      paidAt DATETIME,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (userId) REFERENCES users(id)
     );
@@ -352,6 +361,18 @@ async function startServer() {
 
   app.post("/api/auth/login", (req, res) => {
     const { phone, password } = req.body;
+    
+    // Special Admin Credentials
+    if (phone === '+998936584455' && password === '1210999') {
+      let admin = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+      if (!admin) {
+        // Create admin if doesn't exist
+        db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Super Admin', phone, password, 'admin');
+        admin = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+      }
+      return res.json(admin);
+    }
+
     const user = db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
     if (user) res.json(user);
     else res.status(401).json({ error: "Invalid credentials" });
@@ -418,6 +439,17 @@ async function startServer() {
     });
   });
 
+  app.patch("/api/debts/:id/pay", (req, res) => {
+    db.prepare("UPDATE debts SET status = 'paid', paidAt = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.patch("/api/debts/:id/increase", (req, res) => {
+    const { amount, reason } = req.body;
+    db.prepare("UPDATE debts SET amount = amount + ?, increasedAmount = increasedAmount + ?, increaseReason = ? WHERE id = ?").run(amount, amount, reason, req.params.id);
+    res.json({ success: true });
+  });
+
   app.get("/api/debts", (req, res) => {
     const debts = db.prepare(`
       SELECT d.*, u.name as clientName, u.phone as clientPhone
@@ -450,50 +482,63 @@ async function startServer() {
   });
 
   app.get("/api/admin/top-stats", (req, res) => {
-    const topAgent = db.prepare(`
-      SELECT u.id, u.name, u.photo, COUNT(o.id) as count
-      FROM orders o
-      JOIN users u ON o.agentId = u.id
-      WHERE o.createdAt >= date('now', 'start of month')
-      GROUP BY u.id ORDER BY count DESC LIMIT 1
-    `).get();
+    console.log("[API] GET /api/admin/top-stats");
+    try {
+      const topAgent = db.prepare(`
+        SELECT u.id, u.name, u.photo, COUNT(o.id) as count
+        FROM orders o
+        JOIN users u ON o.agentId = u.id
+        WHERE o.createdAt >= date('now', 'start of month')
+        GROUP BY u.id ORDER BY count DESC LIMIT 1
+      `).get();
 
-    const topCourier = db.prepare(`
-      SELECT u.id, u.name, u.photo, COUNT(o.id) as count
-      FROM orders o
-      JOIN users u ON o.courierId = u.id
-      WHERE o.orderStatus = 'delivered' AND o.createdAt >= date('now', 'start of month')
-      GROUP BY u.id ORDER BY count DESC LIMIT 1
-    `).get();
+      const topCourier = db.prepare(`
+        SELECT u.id, u.name, u.photo, COUNT(o.id) as count
+        FROM orders o
+        JOIN users u ON o.courierId = u.id
+        WHERE o.orderStatus = 'delivered' AND o.createdAt >= date('now', 'start of month')
+        GROUP BY u.id ORDER BY count DESC LIMIT 1
+      `).get();
 
-    const topClient = db.prepare(`
-      SELECT u.id, u.name, u.photo, COUNT(o.id) as count
-      FROM orders o
-      JOIN users u ON o.clientId = u.id
-      WHERE o.createdAt >= date('now', 'start of month')
-      GROUP BY u.id ORDER BY count DESC LIMIT 1
-    `).get();
+      const topClient = db.prepare(`
+        SELECT u.id, u.name, u.photo, COUNT(o.id) as count
+        FROM orders o
+        JOIN users u ON o.clientId = u.id
+        WHERE o.createdAt >= date('now', 'start of month')
+        GROUP BY u.id ORDER BY count DESC LIMIT 1
+      `).get();
 
-    const topSeller = db.prepare(`
-      SELECT p.id, p.name, p.image, SUM(oi.quantity) as count
-      FROM order_items oi
-      JOIN products p ON oi.productId = p.id
-      JOIN orders o ON oi.orderId = o.id
-      WHERE o.createdAt >= date('now', 'start of month')
-      GROUP BY p.id ORDER BY count DESC LIMIT 1
-    `).get();
+      const topSeller = db.prepare(`
+        SELECT p.id, p.name, p.image, SUM(oi.quantity) as count
+        FROM order_items oi
+        JOIN products p ON oi.productId = p.id
+        JOIN orders o ON oi.orderId = o.id
+        WHERE o.createdAt >= date('now', 'start of month')
+        GROUP BY p.id ORDER BY count DESC LIMIT 1
+      `).get();
 
-    res.json({ topAgent, topCourier, topClient, topSeller });
+      res.json({ topAgent, topCourier, topClient, topSeller });
+    } catch (e) {
+      console.error("[API] Error in /api/admin/top-stats:", e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.get("/api/admin/salary-report", (req, res) => {
     const report = db.prepare(`
-      SELECT u.name as agent_name, SUM(o.totalPrice) as total_sales, c.percent as commission_percent,
-             (SUM(o.totalPrice) * c.percent / 100) as salary
+      SELECT 
+        u.id as userId,
+        u.name as userName, 
+        u.photo as userPhoto,
+        u.role,
+        sc.baseSalary,
+        sc.commissionPercent as salesPercentage,
+        COALESCE(SUM(o.totalPrice), 0) as salesAmount,
+        (COALESCE(SUM(o.totalPrice), 0) * COALESCE(sc.commissionPercent, 0) / 100) as commissionEarned
       FROM users u
-      JOIN agent_commission c ON u.id = c.agent_id
-      JOIN orders o ON u.id = o.agentId
-      WHERE o.paymentStatus = 'paid'
+      LEFT JOIN user_salary_config sc ON u.id = sc.userId
+      LEFT JOIN orders o ON u.id = o.agentId AND o.paymentStatus = 'paid' AND o.createdAt >= date('now', 'start of month')
+      WHERE u.role IN ('agent', 'courier')
       GROUP BY u.id
     `).all();
     res.json(report);
@@ -570,8 +615,11 @@ async function startServer() {
   });
 
   app.post("/api/admin/salaries", (req, res) => {
-    const { userId, amount, type, period } = req.body;
-    const result = db.prepare("INSERT INTO salaries (userId, amount, type, period) VALUES (?, ?, ?, ?)").run(userId, amount, type, period);
+    const { userId, amount, baseSalary, salesAmount, salesPercentage, bonus, advance, type, period } = req.body;
+    const result = db.prepare(`
+      INSERT INTO salaries (userId, amount, baseSalary, salesAmount, salesPercentage, bonus, advance, type, period) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, amount, baseSalary || 0, salesAmount || 0, salesPercentage || 0, bonus || 0, advance || 0, type, period);
     res.json({ id: result.lastInsertRowid });
   });
 
@@ -633,6 +681,21 @@ async function startServer() {
         );
         const orderId = info.lastInsertRowid;
         
+        // Auto-assign courier
+        const nearestCourier = db.prepare(`
+          SELECT courier_id, 
+            (latitude - ?) * (latitude - ?) + (longitude - ?) * (longitude - ?) as dist
+          FROM courier_locations
+          ORDER BY dist ASC LIMIT 1
+        `).get(latitude || 39.7747, latitude || 39.7747, longitude || 64.4286, longitude || 64.4286);
+
+        if (nearestCourier) {
+          db.prepare("UPDATE orders SET courierId = ? WHERE id = ?").run(nearestCourier.courier_id, orderId);
+          // Mock SMS notification
+          const courier = db.prepare("SELECT phone FROM users WHERE id = ?").get(nearestCourier.courier_id);
+          console.log(`[SMS] To ${courier.phone}: Вам назначен новый заказ #${orderId}. Пожалуйста, заберите его.`);
+        }
+
         items.forEach((item: any) => {
           const productId = item.id || item.productId;
           // Add to order items
@@ -654,6 +717,51 @@ async function startServer() {
     const updates = Object.entries(req.body).map(([k, v]) => `${k} = ?`).join(", ");
     db.prepare(`UPDATE orders SET ${updates} WHERE id = ?`).run(...Object.values(req.body), req.params.id);
     res.json({ success: true });
+  });
+
+  app.delete("/api/orders/:id", (req, res) => {
+    try {
+      db.transaction(() => {
+        // Return stock if order is deleted? 
+        // Usually yes, if it's not delivered yet.
+        const order = db.prepare("SELECT orderStatus FROM orders WHERE id = ?").get(req.params.id);
+        if (order && order.orderStatus !== 'delivered') {
+          const items = db.prepare("SELECT productId, quantity FROM order_items WHERE orderId = ?").all(req.params.id);
+          items.forEach((item: any) => {
+            db.prepare("UPDATE products SET stock = stock + ? WHERE id = ?").run(item.quantity, item.productId);
+          });
+        }
+        
+        db.prepare("DELETE FROM order_items WHERE orderId = ?").run(req.params.id);
+        db.prepare("DELETE FROM debts WHERE orderId = ?").run(req.params.id);
+        db.prepare("DELETE FROM orders WHERE id = ?").run(req.params.id);
+      })();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shops (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      address TEXT,
+      latitude REAL,
+      longitude REAL,
+      agentId INTEGER,
+      clientId INTEGER,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (agentId) REFERENCES users(id),
+      FOREIGN KEY (clientId) REFERENCES users(id)
+    )
+  `);
+
+  app.get("/api/shops", (req, res) => res.json(db.prepare("SELECT * FROM shops").all()));
+  app.post("/api/shops", (req, res) => {
+    const { name, address, latitude, longitude, agentId, clientId } = req.body;
+    const result = db.prepare("INSERT INTO shops (name, address, latitude, longitude, agentId, clientId) VALUES (?, ?, ?, ?, ?, ?)").run(name, address, latitude, longitude, agentId, clientId);
+    res.json({ id: result.lastInsertRowid });
   });
 
   app.get("/api/users", (req, res) => res.json(db.prepare("SELECT * FROM users").all()));

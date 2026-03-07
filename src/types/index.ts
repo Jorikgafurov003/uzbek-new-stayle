@@ -93,6 +93,26 @@ export interface Debt {
   amount: number;
   dueDate?: string;
   status: 'pending' | 'paid';
+  paidAt?: string;
+  increasedAmount?: number;
+  increaseReason?: string;
+  createdAt: string;
+}
+
+export interface Salary {
+  id: number | string;
+  userId: number | string;
+  userName: string;
+  userPhoto?: string;
+  month: string;
+  baseSalary: number;
+  salesPercentage: number;
+  salesAmount: number;
+  bonus: number;
+  advance: number;
+  total: number;
+  status: 'pending' | 'paid';
+  paidAt?: string;
   createdAt: string;
 }
 

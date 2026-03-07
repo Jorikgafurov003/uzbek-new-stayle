@@ -16,13 +16,14 @@ import { courierIcon, storeIcon } from '../utils/MapIcons';
 const STORE_LOCATION = BUKHARA_CENTER;
 
 export const CourierApp: React.FC = () => {
-  const { orders, updateOrder, users, updateUserLocation, updateUser, speak, addDebt, products, isOnline, banners } = useData();
+  const { orders, updateOrder, users, updateUserLocation, updateUser, speak, addDebt, products, isOnline, banners, debts, shops } = useData();
   const { logout, user: authUser } = useAuth();
   const { t } = useLanguage();
   
   const user = users.find(u => u.id === authUser?.id) || authUser;
   const [activeTab, setActiveTab] = useState<'deliveries' | 'warehouse' | 'history' | 'profile'>('deliveries');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const [showMap, setShowMap] = useState<number | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(user?.photo || null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; onConfirm: () => void; title?: string; message?: string }>({ isOpen: false, onConfirm: () => {} });
   const [showHandoverModal, setShowHandoverModal] = useState(false);
@@ -88,8 +89,27 @@ export const CourierApp: React.FC = () => {
     }
   }, [banners]);
 
+  useEffect(() => {
+    const assignedOrders = orders.filter(o => o.courierId === user?.id && o.orderStatus === 'confirmed');
+    if (assignedOrders.length > 0) {
+      const lastOrder = assignedOrders[assignedOrders.length - 1];
+      // Check if we already notified about this order in this session
+      const notifiedKey = `notified_order_${lastOrder.id}`;
+      if (!sessionStorage.getItem(notifiedKey)) {
+        speak(`Вам назначен новый заказ номер ${lastOrder.id}. Пожалуйста, проверьте список доставок.`);
+        sessionStorage.setItem(notifiedKey, 'true');
+      }
+    }
+  }, [orders, user?.id]);
+
   const myDeliveries = orders.filter(o => o.courierId === user?.id && (o.orderStatus === 'confirmed' || o.orderStatus === 'on_way'));
+  const availableOrders = orders.filter(o => o.orderStatus === 'confirmed' && !o.courierId);
   const historyDeliveries = orders.filter(o => o.courierId === user?.id && o.orderStatus === 'delivered');
+
+  const acceptOrder = async (orderId: number) => {
+    await updateOrder(orderId, { courierId: user?.id });
+    speak(`Вы приняли заказ номер ${orderId}. Пожалуйста, заберите его со склада.`);
+  };
 
   const updateStatus = async (orderId: number, status: string) => {
     if (status === 'delivered') {
@@ -172,6 +192,39 @@ export const CourierApp: React.FC = () => {
         )}
 
         <div className="space-y-4">
+          {activeTab === 'deliveries' && availableOrders.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black text-uzum-muted uppercase tracking-[0.2em] px-2">Доступные заказы ({availableOrders.length})</h3>
+              {availableOrders.map(order => (
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  key={order.id} 
+                  className="bg-uzum-primary/5 border border-uzum-primary/10 rounded-[2rem] p-6"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="text-lg font-bold text-uzum-text">{order.clientName}</h4>
+                      <p className="text-xs text-uzum-muted flex items-center gap-1 mt-1">
+                        <MapPin size={12} /> {order.location}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">Сумма</p>
+                      <p className="text-lg font-black text-uzum-primary">{(order.totalPrice || 0).toLocaleString()} сум</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleConfirmAction(() => acceptOrder(order.id), 'Принять заказ', 'Вы уверены, что хотите взять этот заказ?')}
+                    className="w-full py-4 bg-uzum-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-uzum-primary/20"
+                  >
+                    Принять заказ
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
           {activeTab === 'warehouse' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
               <div className="flex justify-between items-center px-2">
@@ -243,10 +296,67 @@ export const CourierApp: React.FC = () => {
                       <MapPin size={16} className="text-uzum-primary" /> 
                       <span className="font-medium">{order.location}</span>
                     </div>
+                    {/* Customer Debt Info */}
+                    <div className="mt-3 p-3 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3">
+                      <div className="p-2 bg-red-500 text-white rounded-xl">
+                        <CreditCard size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-red-400 uppercase tracking-widest">Долг клиента</p>
+                        <p className="text-sm font-black text-red-600">
+                          {(debts.filter(d => d.clientId === order.clientId && d.status === 'pending').reduce((sum, d) => sum + d.amount, 0)).toLocaleString()} сум
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <a href={`tel:${order.clientPhone}`} className="p-4 bg-uzum-primary text-white rounded-2xl shadow-lg shadow-uzum-primary/20">
-                    <Phone size={24} />
-                  </a>
+                  <div className="flex gap-2">
+                    <a href={`tel:${order.clientPhone}`} className="flex-1 p-4 bg-uzum-primary text-white rounded-2xl shadow-lg shadow-uzum-primary/20 flex items-center justify-center gap-2">
+                      <Phone size={20} /> Позвонить
+                    </a>
+                    <button 
+                      onClick={() => setShowMap(showMap === order.id ? null : order.id)}
+                      className="flex-1 p-4 bg-white border border-uzum-primary text-uzum-primary rounded-2xl flex items-center justify-center gap-2"
+                    >
+                      <Navigation size={20} /> {showMap === order.id ? 'Закрыть карту' : 'Маршрут'}
+                    </button>
+                  </div>
+
+                  {showMap === order.id && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 300 }}
+                      className="rounded-2xl overflow-hidden border border-stone-100 relative"
+                    >
+                      <MapContainer center={[user?.lat || BUKHARA_CENTER[0], user?.lng || BUKHARA_CENTER[1]]} zoom={15} style={{ height: '100%', width: '100%' }}>
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                        
+                        {/* Courier Marker */}
+                        <Marker position={[user?.lat || BUKHARA_CENTER[0], user?.lng || BUKHARA_CENTER[1]]} icon={courierIcon}>
+                          <Popup>Вы здесь</Popup>
+                        </Marker>
+
+                        {/* Destination Marker (Shop or Client) */}
+                        {(() => {
+                          const shop = shops.find(s => s.id === order.shopId);
+                          const destPos: [number, number] = shop ? [shop.latitude, shop.longitude] : BUKHARA_CENTER;
+                          return (
+                            <>
+                              <Marker position={destPos} icon={storeIcon}>
+                                <Popup>{shop ? `Магазин: ${shop.name}` : 'Точка доставки'}</Popup>
+                              </Marker>
+                              <Routing 
+                                from={[user?.lat || BUKHARA_CENTER[0], user?.lng || BUKHARA_CENTER[1]]} 
+                                to={destPos} 
+                              />
+                            </>
+                          );
+                        })()}
+                      </MapContainer>
+                      <div className="absolute top-2 right-2 z-[1000] bg-white/90 backdrop-blur-sm p-2 rounded-lg text-[8px] font-black uppercase tracking-widest border border-stone-200">
+                        Авто-маршрут построен
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 <div className="bg-uzum-bg p-4 rounded-2xl space-y-3">

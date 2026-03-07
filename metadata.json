@@ -1,6 +1,6 @@
 {
-  "name": "Remix: Remix: Uzbechka Delivery Original0000000000000000000000",
-  "description": "Premium oriental delivery system for food and goods with role-based access for Admins, Agents, Couriers, and Clients.",
+  "name": "Uzbechka Management System",
+  "description": "Premium oriental management system for food and goods with role-based access for Admins, Agents, Couriers, and Clients. Includes debt tracking, salary management, and real-time tracking.",
   "requestFramePermissions": [
     "geolocation",
     "camera",

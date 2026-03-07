@@ -24,6 +24,7 @@ interface DataContextType {
   commissions: { agent_id: number; percent: number }[];
   salaryConfigs: any[];
   salaries: any[];
+  shops: any[];
   accounting: {
     income: number;
     expenses: number;
@@ -46,7 +47,10 @@ interface DataContextType {
   updateUser: (id: number, updates: any) => Promise<void>;
   updateSalaryConfig: (userId: number, config: any) => Promise<void>;
   createSalary: (salary: any) => Promise<void>;
+  payDebt: (id: number | string) => Promise<void>;
+  increaseDebt: (id: number | string, amount: number, reason: string) => Promise<void>;
   addBanner: (banner: Partial<Banner>) => Promise<void>;
+  addShop: (shop: any) => Promise<void>;
   updateBanner: (id: number, updates: Partial<Banner>) => Promise<void>;
   deleteBanner: (id: number) => Promise<void>;
   updateSettings: (updates: any) => Promise<void>;
@@ -87,6 +91,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [commissions, setCommissions] = useState<{ agent_id: number; percent: number }[]>([]);
   const [salaryConfigs, setSalaryConfigs] = useState<any[]>([]);
   const [salaries, setSalaries] = useState<any[]>([]);
+  const [shops, setShops] = useState<any[]>([]);
   const [accounting, setAccounting] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -159,7 +164,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { name: 'commissions', url: '/api/admin/commissions' },
         { name: 'salaryConfigs', url: '/api/admin/salary-configs' },
         { name: 'salaries', url: '/api/admin/salaries' },
-        { name: 'accounting', url: '/api/admin/accounting' }
+        { name: 'accounting', url: '/api/admin/accounting' },
+        { name: 'shops', url: '/api/shops' }
       ];
 
       const results = await Promise.all(
@@ -234,6 +240,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           case 'salaryConfigs': setSalaryConfigs(res.data); break;
           case 'salaries': setSalaries(res.data); break;
           case 'accounting': setAccounting(res.data); break;
+          case 'shops': setShops(res.data); break;
           case 'topStats': setStats(prev => prev ? { ...prev, ...res.data } : res.data); break;
         }
       });
@@ -421,6 +428,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshData();
   };
 
+  const payDebt = async (id: number | string) => {
+    await apiFetch(`/api/debts/${id}/pay`, { method: 'PATCH' });
+    await refreshData();
+  };
+
+  const increaseDebt = async (id: number | string, amount: number, reason: string) => {
+    await apiFetch(`/api/debts/${id}/increase`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, reason }),
+    });
+    speak(`Долг клиента увеличен на ${amount} сум по причине: ${reason}`);
+    await refreshData();
+  };
+
   const updateUser = async (id: number, updates: any) => {
     await apiFetch(`/api/users/${id}`, {
       method: 'PUT',
@@ -435,6 +457,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(banner),
+    });
+    await refreshData();
+  };
+
+  const addShop = async (shop: any) => {
+    await apiFetch('/api/shops', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shop),
     });
     await refreshData();
   };
@@ -503,10 +534,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <DataContext.Provider value={{ 
       products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
-      insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries,
+      insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops,
       refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
-      updateSalaryConfig, createSalary,
-      addBanner, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
+      updateSalaryConfig, createSalary, payDebt, increaseDebt,
+      addBanner, addShop, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
       deployUpdate, setCommission, uploadProof, apiFetch
     }}>
       {children}

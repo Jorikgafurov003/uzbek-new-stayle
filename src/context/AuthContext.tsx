@@ -118,9 +118,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: data.role,
             createdAt: new Date().toISOString()
           });
-        } catch (createErr) {
-          console.error('Failed to create Firebase user:', createErr);
+        } catch (createErr: any) {
+          if (createErr.code === 'auth/operation-not-allowed') {
+            console.error('Firebase Auth Error: Email/Password sign-in is not enabled in the Firebase Console.');
+            alert('Ошибка авторизации: Метод входа по Email/паролю не включен в консоли Firebase. Пожалуйста, обратитесь к администратору.');
+          } else {
+            console.error('Failed to create Firebase user:', createErr);
+          }
         }
+      } else if (e.code === 'auth/operation-not-allowed') {
+        console.error('Firebase Auth Error: Email/Password sign-in is not enabled in the Firebase Console.');
+        alert('Ошибка авторизации: Метод входа по Email/паролю не включен в консоли Firebase. Пожалуйста, обратитесь к администратору.');
       } else {
         console.error('Firebase Auth error:', e);
       }
@@ -149,8 +157,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: role || 'client',
         createdAt: new Date().toISOString()
       });
-    } catch (e) {
-      console.error('Failed to sync registration with Firebase:', e);
+    } catch (e: any) {
+      if (e.code === 'auth/operation-not-allowed') {
+        console.error('Firebase Auth Error: Email/Password sign-in is not enabled in the Firebase Console.');
+        alert('Ошибка регистрации: Метод входа по Email/паролю не включен в консоли Firebase.');
+      } else {
+        console.error('Failed to sync registration with Firebase:', e);
+      }
     }
 
     setUser(data);
