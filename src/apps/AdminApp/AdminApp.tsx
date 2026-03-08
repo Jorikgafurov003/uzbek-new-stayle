@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useData } from '../context/DataContext';
-import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
+import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   LayoutDashboard, Package, ShoppingBag, Users, LogOut, 
   TrendingUp, CheckCircle, Check, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote, Calculator
@@ -23,15 +23,15 @@ const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }
   return null;
 };
 import { AdminAI } from './AdminAI';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 
-import { apiFetch } from '../utils/api';
+import { apiFetch } from '../../utils/api';
 
 
 
 const BUKHARA_CENTER: [number, number] = [39.7747, 64.4286];
 const WAREHOUSE_LOCATION: [number, number] = [39.7750, 64.4300]; // Example warehouse location
-import { courierIcon, agentIcon, storeIcon } from '../utils/MapIcons';
+import { courierIcon, agentIcon, storeIcon } from '../../utils/MapIcons';
 
 // Mapbox Tracker Component
 const MapboxTracker: React.FC<{ users: any[], orders: any[], settings: any, t: any }> = ({ users, orders, settings, t }) => {
@@ -306,6 +306,9 @@ export const AdminApp: React.FC = () => {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [selectedOrderForMap, setSelectedOrderForMap] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [productImages, setProductImages] = useState<string[]>([]);
+  const [showAddBanner, setShowAddBanner] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [selectedUserForTrack, setSelectedUserForTrack] = useState<number | null>(null);
   const [userTrack, setUserTrack] = useState<[number, number][]>([]);
@@ -328,18 +331,33 @@ export const AdminApp: React.FC = () => {
     setConfirmDialog({ isOpen: true, onConfirm, title, message });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'product' | 'user' = 'product') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (type === 'product') {
-          setImagePreview(reader.result as string);
-        } else {
-          setUserPhotoPreview(reader.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'product' | 'user' | 'banner' = 'product') => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      if (type === 'product') {
+        const newImages: string[] = [...productImages];
+        Array.from(files).forEach(file => {
+          if (newImages.length < 5) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              newImages.push(reader.result as string);
+              setProductImages([...newImages]);
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      } else {
+        const file = files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (type === 'user') {
+            setUserPhotoPreview(reader.result as string);
+          } else if (type === 'banner') {
+            setImagePreview(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -1330,56 +1348,6 @@ export const AdminApp: React.FC = () => {
           </motion.div>
         )}
 
-        {activeTab === 'banners' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">{t('banners')}</h2>
-              <button 
-                onClick={() => setShowAddBanner(true)}
-                className="gold-gradient text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md"
-              >
-                <Plus size={20} /> {t('addBanner')}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {banners.map(banner => (
-                <div key={banner.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-stone-100">
-                  <div className="relative h-40">
-                    <img src={banner.imageUrl} className="w-full h-full object-cover" />
-                    {banner.videoUrl && (
-                      <div className="absolute top-2 right-2 bg-black/50 p-2 rounded-full text-white">
-                        <Play size={16} fill="white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4 flex justify-between items-center">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-bold">{banner.title}</h4>
-                        <button 
-                          onClick={() => updateBanner(banner.id, { isActive: banner.isActive ? 0 : 1 })}
-                          className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest transition-all ${
-                            banner.isActive ? 'bg-green-100 text-green-600' : 'bg-stone-100 text-stone-400'
-                          }`}
-                        >
-                          {banner.isActive ? 'Active' : 'Inactive'}
-                        </button>
-                      </div>
-                      <p className="text-xs text-stone-400">{banner.link || 'No link'}</p>
-                    </div>
-                    <button onClick={() => {
-                      deleteBanner(banner.id);
-                      speak(`Баннер ${banner.title} удален`);
-                    }} className="text-red-400 hover:text-red-600 ml-4">
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
         {activeTab === 'ai' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <div className="flex justify-between items-center">
@@ -1515,6 +1483,53 @@ export const AdminApp: React.FC = () => {
                   ))}
                 </div>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'banners' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Управление Баннерами</h2>
+              <button 
+                onClick={() => { setShowAddBanner(true); setImagePreview(null); }}
+                className="gold-gradient text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl"
+              >
+                <Plus size={20} /> Добавить Баннер
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {banners.map(banner => (
+                <div key={banner.id} className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-stone-100 group">
+                  <div className="relative h-48 overflow-hidden">
+                    <img src={banner.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                      <button 
+                        onClick={() => { setEditingBanner(banner); setImagePreview(banner.imageUrl); }}
+                        className="p-3 bg-white text-stone-800 rounded-xl hover:bg-gold hover:text-white transition-all"
+                      >
+                        <Edit2 size={20} />
+                      </button>
+                      <button 
+                        onClick={() => handleConfirm(() => deleteBanner(Number(banner.id)), t('delete'), t('areYouSure'))}
+                        className="p-3 bg-white text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                    <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      banner.isActive ? 'bg-green-500 text-white' : 'bg-stone-500 text-white'
+                    }`}>
+                      {banner.isActive ? 'Активен' : 'Черновик'}
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    <h3 className="font-bold text-lg text-stone-800 mb-1">{banner.title}</h3>
+                    <p className="text-xs text-stone-400 font-medium truncate">{banner.link || 'Нет ссылки'}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
@@ -1975,6 +1990,7 @@ export const AdminApp: React.FC = () => {
           { id: 'accounting', icon: <Calculator size={20} />, label: 'Accounting' },
           { id: 'telegram', icon: <Send size={20} />, label: 'Telegram' },
           { id: 'salaries', icon: <Banknote size={20} />, label: 'Salaries' },
+          { id: 'banners', icon: <Image size={20} />, label: 'Banners' },
           { id: 'warehouse', icon: <Package size={20} />, label: 'Warehouse' },
           { id: 'users', icon: <Users size={20} />, label: t('users') },
           { id: 'settings', icon: <SettingsIcon size={20} />, label: t('settings') },
@@ -2001,6 +2017,118 @@ export const AdminApp: React.FC = () => {
         title={confirmDialog.title}
         message={confirmDialog.message}
       />
+
+      <AnimatePresence>
+        {showAddBanner && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-stone-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Добавить Баннер</h3>
+                <button onClick={() => setShowAddBanner(false)} className="text-stone-400"><X /></button>
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                await addBanner({
+                  title: formData.get('title') as string,
+                  imageUrl: imagePreview || formData.get('imageUrl') as string,
+                  link: formData.get('link') as string,
+                  isActive: 1
+                });
+                speak("Баннер добавлен");
+                setShowAddBanner(false);
+              }} className="space-y-4">
+                <div className="h-40 rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 relative overflow-hidden flex flex-col items-center justify-center group">
+                  {imagePreview ? (
+                    <img src={imagePreview} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <Upload className="text-stone-300 mb-2" size={32} />
+                      <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Загрузить фото</p>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'banner')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Заголовок</label>
+                  <input name="title" required className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Ссылка (необязательно)</label>
+                  <input name="link" className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                </div>
+                <button type="submit" className="w-full gold-gradient text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg mt-4">
+                  Сохранить
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingBanner && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-stone-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold">Изменить Баннер</h3>
+                <button onClick={() => setEditingBanner(null)} className="text-stone-400"><X /></button>
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                await updateBanner(Number(editingBanner.id), {
+                  title: formData.get('title') as string,
+                  imageUrl: imagePreview || editingBanner.imageUrl,
+                  link: formData.get('link') as string,
+                  isActive: formData.get('isActive') === 'on' ? 1 : 0
+                });
+                speak("Баннер обновлен");
+                setEditingBanner(null);
+              }} className="space-y-4">
+                <div className="h-40 rounded-2xl border-2 border-dashed border-stone-200 bg-stone-50 relative overflow-hidden flex flex-col items-center justify-center group">
+                  {imagePreview ? (
+                    <img src={imagePreview} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <Upload className="text-stone-300 mb-2" size={32} />
+                      <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Загрузить фото</p>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, 'banner')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Заголовок</label>
+                  <input name="title" defaultValue={editingBanner.title} required className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Ссылка</label>
+                  <input name="link" defaultValue={editingBanner.link} className="w-full p-3 rounded-xl border border-stone-200 outline-none focus:border-gold bg-stone-50" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" name="isActive" defaultChecked={editingBanner.isActive === 1} className="w-4 h-4 text-gold rounded" />
+                  <label className="text-xs font-bold text-stone-600 uppercase tracking-widest">Активен</label>
+                </div>
+                <button type="submit" className="w-full gold-gradient text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg mt-4">
+                  Сохранить
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add Salary Modal */}
       <AnimatePresence>
@@ -2194,33 +2322,34 @@ export const AdminApp: React.FC = () => {
                   discountPrice: formData.get('discountPrice') ? Number(formData.get('discountPrice')) : undefined,
                   categoryId: Number(formData.get('categoryId')),
                   description: formData.get('description') as string,
-                  image: imagePreview || formData.get('imageUrl') as string || `https://picsum.photos/seed/${Math.random()}/400/300`,
+                  image: productImages[0] || formData.get('imageUrl') as string || `https://picsum.photos/seed/${Math.random()}/400/300`,
+                  images: productImages,
                   videoUrl: formData.get('videoUrl') as string,
                   stock: Number(formData.get('stock'))
                 });
                 speak(`Товар ${name} успешно добавлен`);
                 setShowAddProduct(false);
-                setImagePreview(null);
+                setProductImages([]);
               }} className="space-y-5">
-                <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-stone-200 rounded-[2rem] bg-stone-50 hover:bg-stone-100 transition-all cursor-pointer relative overflow-hidden group h-48">
-                  {imagePreview ? (
-                    <img src={imagePreview} className="absolute inset-0 w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <Upload className="text-stone-300 mb-2" size={40} />
-                      <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Загрузить фото блюда</p>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  {productImages.map((img, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-stone-100">
+                      <img src={img} className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => setProductImages(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full"
+                      >
+                        <X size={12} />
+                      </button>
                     </div>
-                  )}
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleFileChange}
-                    className="absolute inset-0 opacity-0 cursor-pointer" 
-                  />
-                  {imagePreview && (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <p className="text-white text-xs font-bold uppercase tracking-widest">Сменить фото</p>
-                    </div>
+                  ))}
+                  {productImages.length < 5 && (
+                    <label className="aspect-square rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 transition-all">
+                      <Plus size={20} className="text-stone-300" />
+                      <span className="text-[8px] font-black text-stone-400 uppercase">Фото</span>
+                      <input type="file" accept="image/*" multiple onChange={(e) => handleFileChange(e, 'product')} className="hidden" />
+                    </label>
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-5">
@@ -2310,33 +2439,34 @@ export const AdminApp: React.FC = () => {
                   discountPrice: formData.get('discountPrice') ? Number(formData.get('discountPrice')) : undefined,
                   categoryId: Number(formData.get('categoryId')),
                   description: formData.get('description') as string,
-                  image: imagePreview || formData.get('imageUrl') as string || editingProduct.image,
+                  image: productImages[0] || formData.get('imageUrl') as string || editingProduct.image,
+                  images: productImages.length > 0 ? productImages : undefined,
                   videoUrl: formData.get('videoUrl') as string,
                   stock: Number(formData.get('stock'))
                 });
                 speak(`Товар ${name} успешно обновлен`);
                 setEditingProduct(null);
-                setImagePreview(null);
+                setProductImages([]);
               }} className="space-y-5">
-                <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-stone-200 rounded-[2rem] bg-stone-50 hover:bg-stone-100 transition-all cursor-pointer relative overflow-hidden group h-48">
-                  {imagePreview ? (
-                    <img src={imagePreview} className="absolute inset-0 w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <Upload className="text-stone-300 mb-2" size={40} />
-                      <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Загрузить фото блюда</p>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  {productImages.map((img, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-stone-100">
+                      <img src={img} className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => setProductImages(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full"
+                      >
+                        <X size={12} />
+                      </button>
                     </div>
-                  )}
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleFileChange}
-                    className="absolute inset-0 opacity-0 cursor-pointer" 
-                  />
-                  {imagePreview && (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <p className="text-white text-xs font-bold uppercase tracking-widest">Сменить фото</p>
-                    </div>
+                  ))}
+                  {productImages.length < 5 && (
+                    <label className="aspect-square rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 transition-all">
+                      <Plus size={20} className="text-stone-300" />
+                      <span className="text-[8px] font-black text-stone-400 uppercase">Фото</span>
+                      <input type="file" accept="image/*" multiple onChange={(e) => handleFileChange(e, 'product')} className="hidden" />
+                    </label>
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-5">

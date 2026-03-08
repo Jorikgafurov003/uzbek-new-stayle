@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useLanguage } from '../context/LanguageContext';
-import { useData } from '../context/DataContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { useData } from '../../context/DataContext';
 import { AlertTriangle, Check, X } from 'lucide-react';
 
 interface ConfirmDialogProps {

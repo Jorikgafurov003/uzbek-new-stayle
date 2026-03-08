@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { User, Order } from '../types';
-import { BUKHARA_CENTER } from '../context/DataContext';
+import { User, Order } from '../../types';
+import { BUKHARA_CENTER } from '../../context/DataContext';
 
 interface MapLibreTrackerProps {
   users: User[];

@@ -1,22 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { useData } from '../context/DataContext';
-import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
+import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   ShoppingBag, CheckCircle, User, LogOut, Plus, Search, 
   Clock, MapPin, Package, Users, ChevronRight, X, Minus, Trash2, Truck, CreditCard, Navigation, Volume2, TrendingUp, Banknote, Calendar, Store
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { BUKHARA_CENTER } from '../context/DataContext';
+import { BUKHARA_CENTER } from '../../context/DataContext';
 
-const LocationPicker = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) => {
+const LocationPicker = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number, address?: string) => void }) => {
+  const { apiFetch } = useData();
   useMapEvents({
-    click(e) {
-      onLocationSelect(e.latlng.lat, e.latlng.lng);
+    async click(e) {
+      const { lat, lng } = e.latlng;
+      try {
+        const res = await apiFetch(`/api/geocoding/reverse?lat=${lat}&lng=${lng}`);
+        if (res.ok) {
+          const data = await res.json();
+          onLocationSelect(lat, lng, data.address);
+        } else {
+          onLocationSelect(lat, lng);
+        }
+      } catch (err) {
+        onLocationSelect(lat, lng);
+      }
     },
   });
   return null;
@@ -36,12 +48,22 @@ export const AgentApp: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'debt'>('cash');
   const [dueDate, setDueDate] = useState('');
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(user?.photo || null);
+  const [currentBanner, setCurrentBanner] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; onConfirm: () => void; title?: string; message?: string }>({ isOpen: false, onConfirm: () => {} });
   const [showAddClient, setShowAddClient] = useState(false);
   const [showAddShop, setShowAddShop] = useState(false);
   const [newClientData, setNewClientData] = useState({ name: '', phone: '', password: 'client_password' });
   const [newShopData, setNewShopData] = useState({ name: '', address: '', latitude: 39.7747, longitude: 64.4286, clientId: '' });
-  const { shops, addShop, debts } = useData();
+  const { shops, addShop, debts, banners } = useData();
+
+  useEffect(() => {
+    if (banners.length > 0) {
+      const timer = setInterval(() => {
+        setCurrentBanner(prev => (prev + 1) % banners.length);
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [banners]);
 
   const handleCreateShop = async () => {
     if (!newShopData.name || !newShopData.clientId) return;
@@ -170,6 +192,31 @@ export const AgentApp: React.FC = () => {
       </header>
 
       <main className="p-4 max-w-2xl mx-auto">
+        {/* Banner Section */}
+        {banners.filter(b => b.isActive).length > 0 && (
+          <div className="mb-6 relative h-40 rounded-[2.5rem] overflow-hidden shadow-lg border border-white/20">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentBanner}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="absolute inset-0"
+              >
+                <img src={banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].imageUrl} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6">
+                  <h2 className="text-white text-lg font-bold leading-tight">{banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].title}</h2>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+            <div className="absolute bottom-4 right-6 flex gap-1.5">
+              {banners.filter(b => b.isActive).map((_, i) => (
+                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentBanner % banners.filter(b => b.isActive).length ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'orders' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-[#e2e5eb] space-y-6">
@@ -605,7 +652,7 @@ export const AgentApp: React.FC = () => {
                     <MapContainer center={[newShopData.latitude, newShopData.longitude]} zoom={13} style={{ height: '100%', width: '100%' }}>
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                       <Marker position={[newShopData.latitude, newShopData.longitude]} />
-                      <LocationPicker onLocationSelect={(lat, lng) => setNewShopData({ ...newShopData, latitude: lat, longitude: lng })} />
+                      <LocationPicker onLocationSelect={(lat, lng, addr) => setNewShopData({ ...newShopData, latitude: lat, longitude: lng, address: addr || newShopData.address })} />
                     </MapContainer>
                     <div className="absolute bottom-2 left-2 z-[1000] bg-white/90 backdrop-blur-sm p-2 rounded-lg text-[8px] font-black uppercase tracking-widest border border-stone-200">
                       Нажмите на карту, чтобы выбрать точку

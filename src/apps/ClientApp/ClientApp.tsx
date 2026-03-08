@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useData } from '../context/DataContext';
-import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
+import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { ShoppingCart, Package, Clock, User, LogOut, Plus, Minus, Trash2, MapPin, CreditCard, Wallet, Banknote, Play, ChevronRight, ChevronLeft, LayoutDashboard, Search, Users, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 
 
 
@@ -19,7 +19,7 @@ const MapEvents = ({ setCoords }: { setCoords: (coords: [number, number]) => voi
   return null;
 };
 
-import { BUKHARA_CENTER } from '../context/DataContext';
+import { BUKHARA_CENTER } from '../../context/DataContext';
 
 export const ClientApp: React.FC = () => {
   const { products, categories, orders, banners, createOrder, users, debts, settings, updateUser } = useData();
@@ -36,6 +36,8 @@ export const ClientApp: React.FC = () => {
   const [paymentType, setPaymentType] = useState<'payme' | 'click' | 'cash' | 'uzum_nasiya'>('cash');
   const [currentBanner, setCurrentBanner] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [currentProductImage, setCurrentProductImage] = useState(0);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(user?.photo || null);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; onConfirm: () => void; title?: string; message?: string }>({ isOpen: false, onConfirm: () => {} });
 
@@ -226,7 +228,7 @@ export const ClientApp: React.FC = () => {
                   layout
                   className="bg-white rounded-xl overflow-hidden border border-[#e2e5eb] flex flex-col"
                 >
-                  <div className="relative aspect-[4/5] overflow-hidden bg-uzum-bg">
+                  <div className="relative aspect-[4/5] overflow-hidden bg-uzum-bg cursor-pointer" onClick={() => { setSelectedProduct(product); setCurrentProductImage(0); }}>
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                     {product.discountPrice && (
                       <div className="absolute bottom-2 left-2 bg-uzum-primary text-white text-[10px] font-bold px-2 py-0.5 rounded">
@@ -583,6 +585,85 @@ export const ClientApp: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {selectedProduct && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl"
+            >
+              <div className="relative h-80 bg-stone-100">
+                <img 
+                  src={selectedProduct.images?.[currentProductImage] || selectedProduct.image} 
+                  className="w-full h-full object-cover" 
+                />
+                <button 
+                  onClick={() => setSelectedProduct(null)}
+                  className="absolute top-4 right-4 p-2 bg-black/20 backdrop-blur-md text-white rounded-full"
+                >
+                  <X size={20} />
+                </button>
+                
+                {selectedProduct.images && selectedProduct.images.length > 1 && (
+                  <>
+                    <button 
+                      onClick={() => setCurrentProductImage(prev => (prev - 1 + selectedProduct.images.length) % selectedProduct.images.length)}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/20 backdrop-blur-md text-white rounded-full"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button 
+                      onClick={() => setCurrentProductImage(prev => (prev + 1) % selectedProduct.images.length)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/20 backdrop-blur-md text-white rounded-full"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1">
+                      {selectedProduct.images.map((_: any, i: number) => (
+                        <div key={i} className={`h-1 rounded-full transition-all ${i === currentProductImage ? 'w-4 bg-white' : 'w-1 bg-white/50'}`} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              <div className="p-8 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-2xl font-bold text-stone-800">{selectedProduct.name}</h3>
+                    <p className="text-sm text-stone-400 font-medium">{selectedProduct.categoryName || 'Категория'}</p>
+                  </div>
+                  <div className="text-right">
+                    {selectedProduct.discountPrice ? (
+                      <>
+                        <p className="text-xs text-stone-400 line-through">{(selectedProduct.price || 0).toLocaleString()} сум</p>
+                        <p className="text-xl font-black text-uzum-primary">{(selectedProduct.discountPrice || 0).toLocaleString()} сум</p>
+                      </>
+                    ) : (
+                      <p className="text-xl font-black text-uzum-primary">{(selectedProduct.price || 0).toLocaleString()} сум</p>
+                    )}
+                  </div>
+                </div>
+                
+                <p className="text-sm text-stone-600 leading-relaxed">{selectedProduct.description}</p>
+                
+                <div className="pt-4 flex gap-4">
+                  <button 
+                    onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
+                    className="flex-1 py-4 bg-uzum-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-uzum-primary/20"
+                  >
+                    Добавить в корзину
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <ConfirmDialog 
         isOpen={confirmDialog.isOpen}
         onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}

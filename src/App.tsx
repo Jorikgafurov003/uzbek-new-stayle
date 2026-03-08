@@ -1,13 +1,13 @@
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { Login } from './components/Login';
-import { ClientApp } from './components/ClientApp';
-import { AdminApp } from './components/AdminApp';
-import { AgentApp } from './components/AgentApp';
-import { CourierApp } from './components/CourierApp';
+import { Login } from './components/shared/Login';
+import { ClientApp } from './apps/ClientApp/ClientApp';
+import { AdminApp } from './apps/AdminApp/AdminApp';
+import { AgentApp } from './apps/AgentApp/AgentApp';
+import { CourierApp } from './apps/CourierApp/CourierApp';
 
-import { SplashScreen } from './components/SplashScreen';
+import { SplashScreen } from './components/shared/SplashScreen';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 

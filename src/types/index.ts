@@ -26,6 +26,7 @@ export interface Product {
   categoryId: number | string;
   categoryName?: string;
   image: string;
+  images?: string[];
   videoUrl?: string;
   description: string;
   stock?: number;

@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useData } from '../context/DataContext';
-import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
+import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Truck, CheckCircle, LogOut, MapPin, Phone, Clock, Navigation, Package, ChevronDown, ChevronUp, Store, Users, Plus, Volume2, CreditCard, Banknote, Calendar, X, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { ConfirmDialog } from './ConfirmDialog';
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 
 
-import { BUKHARA_CENTER } from '../context/DataContext';
-import { Routing } from './Routing';
-import { courierIcon, storeIcon } from '../utils/MapIcons';
+import { BUKHARA_CENTER } from '../../context/DataContext';
+import { Routing } from '../../components/shared/Routing';
+import { courierIcon, storeIcon } from '../../utils/MapIcons';
 
 const STORE_LOCATION = BUKHARA_CENTER;
 
@@ -297,16 +297,29 @@ export const CourierApp: React.FC = () => {
                       <span className="font-medium">{order.location}</span>
                     </div>
                     {/* Customer Debt Info */}
-                    <div className="mt-3 p-3 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3">
-                      <div className="p-2 bg-red-500 text-white rounded-xl">
-                        <CreditCard size={16} />
+                    <div className="mt-3 p-4 bg-red-50 rounded-[2rem] border border-red-100 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-red-500 text-white rounded-xl">
+                          <CreditCard size={16} />
+                        </div>
+                        <div>
+                          <p className="text-[8px] font-black text-red-400 uppercase tracking-widest">Общий долг клиента</p>
+                          <p className="text-sm font-black text-red-600">
+                            {(debts.filter(d => d.clientId === order.clientId && d.status === 'pending').reduce((sum, d) => sum + d.amount, 0)).toLocaleString()} сум
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[8px] font-black text-red-400 uppercase tracking-widest">Долг клиента</p>
-                        <p className="text-sm font-black text-red-600">
-                          {(debts.filter(d => d.clientId === order.clientId && d.status === 'pending').reduce((sum, d) => sum + d.amount, 0)).toLocaleString()} сум
-                        </p>
-                      </div>
+                      
+                      {debts.filter(d => d.clientId === order.clientId && d.status === 'pending').length > 0 && (
+                        <div className="pt-2 border-t border-red-200/50 space-y-2">
+                          {debts.filter(d => d.clientId === order.clientId && d.status === 'pending').map((debt, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-[10px]">
+                              <span className="text-red-400 font-medium">Заказ #{debt.orderId || 'N/A'}</span>
+                              <span className="text-red-600 font-bold">{debt.amount.toLocaleString()} сум</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">

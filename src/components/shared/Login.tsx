@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { ShoppingBag, Globe } from 'lucide-react';
 import { motion } from 'motion/react';
 

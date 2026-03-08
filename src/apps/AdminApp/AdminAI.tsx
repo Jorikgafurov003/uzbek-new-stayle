@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Sparkles, Send, Bot, User, Loader2, AlertCircle, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
