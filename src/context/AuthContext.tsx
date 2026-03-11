@@ -37,7 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(userData);
             localStorage.setItem('uzbechka_user', JSON.stringify(userData));
           } else {
-            // If they are logged in to Firebase but no doc exists, try to get from localStorage
             const localUser = localStorage.getItem('uzbechka_user');
             if (localUser) {
               const parsed = JSON.parse(localUser);
@@ -50,11 +49,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Error fetching user doc:', e);
         }
       } else {
-        // If not logged in to Firebase, check if we have a local session
         const localUser = localStorage.getItem('uzbechka_user');
         if (localUser) {
           const parsed = JSON.parse(localUser);
-          // Try to re-auth with Firebase if we have a local session
           const email = `${parsed.phone.replace('+', '')}@uzbechka.com`;
           try {
             await signInWithEmailAndPassword(auth, email, parsed.password || 'default_pass');
@@ -79,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
     if (!userDoc.exists()) {
-      // Create a default profile for new Google users
       const newProfile = {
         name: firebaseUser.displayName || 'Google User',
         phone: firebaseUser.phoneNumber || '',
@@ -103,7 +99,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!res.ok) throw new Error('Invalid credentials');
     const data = await res.json();
     
-    // Sync with Firebase Auth
     const email = `${phone.replace('+', '')}@uzbechka.com`;
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -111,7 +106,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (e.code === 'auth/user-not-found') {
         try {
           const credential = await createUserWithEmailAndPassword(auth, email, password);
-          // Create Firestore doc for the user
           await setDoc(doc(db, 'users', credential.user.uid), {
             name: data.name,
             phone: data.phone,
@@ -119,16 +113,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             createdAt: new Date().toISOString()
           });
         } catch (createErr: any) {
-          if (createErr.code === 'auth/operation-not-allowed') {
-            console.error('Firebase Auth Error: Email/Password sign-in is not enabled in the Firebase Console.');
-            alert('Ошибка авторизации: Метод входа по Email/паролю не включен в консоли Firebase. Пожалуйста, обратитесь к администратору.');
-          } else {
-            console.error('Failed to create Firebase user:', createErr);
-          }
+          console.error('Failed to create Firebase user:', createErr);
         }
-      } else if (e.code === 'auth/operation-not-allowed') {
-        console.error('Firebase Auth Error: Email/Password sign-in is not enabled in the Firebase Console.');
-        alert('Ошибка авторизации: Метод входа по Email/паролю не включен в консоли Firebase. Пожалуйста, обратитесь к администратору.');
       } else {
         console.error('Firebase Auth error:', e);
       }
@@ -144,26 +130,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, phone, password, role }),
     });
-    if (!res.ok) throw new Error('Registration failed');
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Registration failed');
+    }
+
     const data = await res.json();
     
-    // Sync with Firebase Auth
     const email = `${phone.replace('+', '')}@uzbechka.com`;
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, 'users', credential.user.uid), {
-        name,
-        phone,
-        role: role || 'client',
+        name: data.name,
+        phone: data.phone,
+        role: data.role,
+        password: data.password,
         createdAt: new Date().toISOString()
       });
     } catch (e: any) {
-      if (e.code === 'auth/operation-not-allowed') {
-        console.error('Firebase Auth Error: Email/Password sign-in is not enabled in the Firebase Console.');
-        alert('Ошибка регистрации: Метод входа по Email/паролю не включен в консоли Firebase.');
-      } else {
-        console.error('Failed to sync registration with Firebase:', e);
-      }
+      console.warn('Firebase sync optional:', e.message);
     }
 
     setUser(data);

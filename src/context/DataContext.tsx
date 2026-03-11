@@ -34,7 +34,11 @@ interface DataContextType {
     expensesList: any[];
     salariesList: any[];
   } | null;
+  activityLogs: any[];
+  orderNotification: any | null;
+  setOrderNotification: (notification: any | null) => void;
   refreshData: () => Promise<void>;
+  logActivity: (action: string, details?: string) => Promise<void>;
   addProduct: (product: Partial<Product>) => Promise<void>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
@@ -47,15 +51,20 @@ interface DataContextType {
   updateUser: (id: number, updates: any) => Promise<void>;
   updateSalaryConfig: (userId: number, config: any) => Promise<void>;
   createSalary: (salary: any) => Promise<void>;
-  payDebt: (id: number | string) => Promise<void>;
+  payDebt: (id: number | string, payerName: string) => Promise<void>;
+  payPartialDebt: (id: number | string, amountPaid: number, payerName: string) => Promise<void>;
   increaseDebt: (id: number | string, amount: number, reason: string) => Promise<void>;
   addBanner: (banner: Partial<Banner>) => Promise<void>;
   addShop: (shop: any) => Promise<void>;
+  updateShop: (id: number, updates: any) => Promise<void>;
+  deleteShop: (id: number) => Promise<void>;
+  updateDebt: (id: number | string, updates: Partial<Debt>) => Promise<void>;
+  deleteDebt: (id: number | string) => Promise<void>;
+  archiveShop: (id: number, isArchived: boolean) => Promise<void>;
   updateBanner: (id: number, updates: Partial<Banner>) => Promise<void>;
   deleteBanner: (id: number) => Promise<void>;
   updateSettings: (updates: any) => Promise<void>;
   addDebt: (debt: Partial<Debt>) => Promise<void>;
-  updateDebt: (id: number, updates: Partial<Debt>) => Promise<void>;
   addExpense: (expense: { title: string; amount: number; category: string }) => Promise<void>;
   deleteExpense: (id: number) => Promise<void>;
   updateUserLocation: (lat: number, lng: number, speed?: number) => Promise<void>;
@@ -67,6 +76,8 @@ interface DataContextType {
   setCommission: (agentId: number, percent: number) => Promise<void>;
   uploadProof: (orderId: number, file: File) => Promise<void>;
   apiFetch: typeof apiFetch;
+  theme: 'light' | 'futuristic';
+  setTheme: (theme: 'light' | 'futuristic') => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -93,7 +104,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [salaries, setSalaries] = useState<any[]>([]);
   const [shops, setShops] = useState<any[]>([]);
   const [accounting, setAccounting] = useState<any>(null);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [orderNotification, setOrderNotification] = useState<any | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [theme, setThemeState] = useState<'light' | 'futuristic'>('light');
 
   const { t, language } = useLanguage();
   const { user } = useAuth();
@@ -114,6 +128,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user?.role === 'admin' || user?.role === 'agent') {
         playSound('order');
         speak(t('newOrderVoice'));
+        if (user?.role === 'admin') {
+          setOrderNotification(data.order);
+        }
       }
       refreshData();
     });
@@ -136,6 +153,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.status === 'delivered') speak(t('orderDeliveredVoice'));
       }
       refreshData();
+    });
+
+    socket.on('activity_logged', (newLog) => {
+      setActivityLogs(prev => [newLog, ...prev]);
     });
 
     return () => {
@@ -165,7 +186,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { name: 'salaryConfigs', url: '/api/admin/salary-configs' },
         { name: 'salaries', url: '/api/admin/salaries' },
         { name: 'accounting', url: '/api/admin/accounting' },
-        { name: 'shops', url: '/api/shops' }
+        { name: 'shops', url: '/api/shops' },
+        { name: 'activityLogs', url: '/api/activity-logs' }
       ];
 
       const results = await Promise.all(
@@ -186,7 +208,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       results.forEach(res => {
         if (res.data === null) return;
-        
+
         switch (res.name) {
           case 'products': setProducts(res.data); break;
           case 'categories': setCategories(res.data); break;
@@ -241,6 +263,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           case 'salaries': setSalaries(res.data); break;
           case 'accounting': setAccounting(res.data); break;
           case 'shops': setShops(res.data); break;
+          case 'activityLogs': setActivityLogs(res.data); break;
           case 'topStats': setStats(prev => prev ? { ...prev, ...res.data } : res.data); break;
         }
       });
@@ -302,7 +325,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     formData.append('photo', file);
     formData.append('orderId', orderId.toString());
     formData.append('type', 'proofs');
-    
+
     await fetch(`${API_BASE_URL}/api/courier/upload-proof`, {
       method: 'POST',
       body: formData
@@ -333,13 +356,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const timer = setTimeout(() => {
       refreshData();
     }, 1500);
-    
+
     const interval = setInterval(refreshData, 10000);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
     };
   }, [language, settings.voice_enabled]);
+
+  useEffect(() => {
+    const currentTheme = settings.theme || 'light';
+    setThemeState(currentTheme);
+    if (currentTheme === 'futuristic') {
+      document.body.classList.add('theme-futuristic');
+    } else {
+      document.body.classList.remove('theme-futuristic');
+    }
+  }, [settings.theme]);
+
+  const setTheme = async (newTheme: 'light' | 'futuristic') => {
+    await updateSettings({ theme: newTheme });
+    setThemeState(newTheme);
+  };
 
   const addProduct = async (product: Partial<Product>) => {
     await apiFetch('/api/products', {
@@ -384,11 +422,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(order),
     });
-    if (res.ok && socketRef.current) {
+    if (res.ok) {
       const newOrder = await res.json();
-      socketRef.current.emit('new_order', newOrder);
+      setOrders(prev => [newOrder, ...prev]);
+      if (socketRef.current) {
+        socketRef.current.emit('new_order', newOrder);
+      }
     }
-    await refreshData();
+    // Refresh data in the background to not lock the UI
+    refreshData().catch(console.error);
   };
 
   const updateOrder = async (id: number, updates: any) => {
@@ -428,8 +470,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshData();
   };
 
-  const payDebt = async (id: number | string) => {
-    await apiFetch(`/api/debts/${id}/pay`, { method: 'PATCH' });
+  const payDebt = async (id: number | string, payerName: string) => {
+    await apiFetch(`/api/debts/${id}/pay`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payerName })
+    });
+    await refreshData();
+  };
+
+  const payPartialDebt = async (id: number | string, amountPaid: number, payerName: string) => {
+    await apiFetch(`/api/debts/${id}/pay-partial`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amountPaid, payerName })
+    });
     await refreshData();
   };
 
@@ -440,6 +495,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({ amount, reason }),
     });
     speak(`Долг клиента увеличен на ${amount} сум по причине: ${reason}`);
+    await refreshData();
+  };
+
+  const updateDebt = async (id: number | string, updates: Partial<Debt>) => {
+    await apiFetch(`/api/debts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
+  };
+
+  const deleteDebt = async (id: number | string) => {
+    await apiFetch(`/api/debts/${id}`, {
+      method: 'DELETE',
+    });
     await refreshData();
   };
 
@@ -466,6 +537,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(shop),
+    });
+    await refreshData();
+  };
+
+  const updateShop = async (id: number, updates: any) => {
+    await apiFetch(`/api/shops/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    await refreshData();
+  };
+
+  const deleteShop = async (id: number) => {
+    await apiFetch(`/api/shops/${id}`, { method: 'DELETE' });
+    await refreshData();
+  };
+
+  const archiveShop = async (id: number, isArchived: boolean) => {
+    await apiFetch(`/api/shops/${id}/archive`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isArchived }),
     });
     await refreshData();
   };
@@ -502,15 +596,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshData();
   };
 
-  const updateDebt = async (id: number, updates: Partial<Debt>) => {
-    await apiFetch(`/api/debts/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    });
-    await refreshData();
-  };
-
   const addExpense = async (expense: { title: string; amount: number; category: string }) => {
     await apiFetch('/api/admin/expenses', {
       method: 'POST',
@@ -525,20 +610,53 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await refreshData();
   };
 
+  const lastLocationUpdateRef = useRef<number>(0);
+  const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const updateUserLocation = async (lat: number, lng: number, speed?: number) => {
     if (!user || !socketRef.current) return;
+
+    // Debounce to once every 3 seconds
+    const now = Date.now();
+    if (now - lastLocationUpdateRef.current < 3000) {
+      if (locationTimeoutRef.current) clearTimeout(locationTimeoutRef.current);
+      locationTimeoutRef.current = setTimeout(() => updateUserLocation(lat, lng, speed), 3000);
+      return;
+    }
+
+    lastLocationUpdateRef.current = now;
     socketRef.current.emit('update_location', { userId: user.id, lat, lng, role: user.role, speed });
     setUsers(prev => prev.map(u => u.id === user.id ? { ...u, lat, lng } : u));
   };
 
+  const logActivity = async (action: string, details?: string) => {
+    if (!user) return;
+    try {
+      await apiFetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role,
+          action,
+          details
+        })
+      });
+    } catch (error) {
+      console.error('Failed to log activity:', error);
+    }
+  };
+
   return (
-    <DataContext.Provider value={{ 
+    <DataContext.Provider value={{
       products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
-      insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops,
+      insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops, accounting, activityLogs, orderNotification, setOrderNotification,
       refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
-      updateSalaryConfig, createSalary, payDebt, increaseDebt,
-      addBanner, addShop, updateBanner, deleteBanner, updateSettings, addDebt, updateDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
-      deployUpdate, setCommission, uploadProof, apiFetch
+      updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
+      addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
+      deployUpdate, setCommission, uploadProof, apiFetch, logActivity,
+      theme, setTheme
     }}>
       {children}
     </DataContext.Provider>

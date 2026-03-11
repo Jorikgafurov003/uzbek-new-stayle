@@ -1,0 +1,19 @@
+// В src/backend/server.ts
+app.post("/api/auth/register", (req, res) => {
+  const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
+  try {
+    // Проверяем, не является ли этот номер номером админа по умолчанию
+    const finalRole = (phone === '+998936584455') ? 'admin' : (role || 'client');
+    
+    const result = db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+      name, phone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
+    );
+    
+    // Возвращаем пользователя СРАЗУ с паролем и ролью, чтобы фронтенд их запомнил
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
+    res.json(user);
+  } catch (e) {
+    console.error("Register error:", e);
+    res.status(400).json({ error: "Phone number already registered or database error" });
+  }
+});

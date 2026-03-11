@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Диспетчер | Uzbechka Fleet</title>
+    <link href="https://unpkg.com/maplibre-gl@3.2.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/maplibre-gl@3.2.1/dist/maplibre-gl.js"></script>
+    <style>
+        .dashboard-layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: var(--bg-dark);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 20;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        .entity-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .entity-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .entity-card.active {
+            border-color: var(--primary);
+            background: rgba(255, 204, 0, 0.05);
+        }
+
+        .status-badge {
+            font-size: 10px;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 800;
+        }
+
+        .status-online {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .fleet-header {
+            margin-bottom: 25px;
+        }
+
+        .fleet-header h1 {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard-layout">
+        <aside class="sidebar">
+            <div class="fleet-header">
+                <h1>FLEET MONITOR</h1>
+                <p style="color: grey; font-size: 11px; font-weight: 700; text-transform: uppercase;">Система контроля
+                    курьеров</p>
+            </div>
+            <div id="entitiesList">
+                <p style="color: grey; text-align: center; margin-top: 50px;">Ожидание данных от флота...</p>
+            </div>
+        </aside>
+
+        <main class="map-container">
+            <div id="map"></div>
+            <div class="overlay" style="top: 20px; right: 20px;">
+                <div class="search-container" style="width: 300px;">
+                    <input type="text" class="search-input" placeholder="Поиск курьера...">
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="map.js"></script>
+    <script>
+        initMap();
+
+        let socket;
+        let entities = [];
+
+        function connect() {
+            socket = new WebSocket(`ws://${window.location.host}`);
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'entities_update') {
+                    entities = data.entities;
+                    updateUI();
+                    updateEntitiesOnMap(entities);
+                }
+            };
+
+            socket.onclose = () => {
+                console.log('Socket closed. Retrying...');
+                setTimeout(connect, 3000);
+            };
+        }
+
+        connect();
+
+        function updateUI() {
+            const list = document.getElementById('entitiesList');
+            if (entities.length === 0) {
+                list.innerHTML = '<p style="color: grey; text-align: center; margin-top: 50px;">Нет активных курьеров</p>';
+                return;
+            }
+
+            list.innerHTML = entities.map(e => `
+                <div class="entity-card" onclick="focusOnLocation(${e.lat}, ${e.lon}, 17, ${e.heading})">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-weight: 800;">${e.name}</span>
+                        <span class="status-badge status-online">Online</span>
+                    </div>
+                    <div style="font-size: 12px; color: grey; display: flex; gap: 15px;">
+                        <span>📍 ${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}</span>
+                        <span>⚡ ${e.speed} км/ч</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+
+</html>

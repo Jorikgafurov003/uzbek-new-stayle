@@ -11,6 +11,8 @@ export interface User {
   lastSeen?: string;
   agentId?: number | string;
   commission?: number;
+  rating?: number;
+  ratingCount?: number;
 }
 
 export interface Category {
@@ -22,19 +24,24 @@ export interface Product {
   id: number | string;
   name: string;
   price: number;
+  costPrice?: number;
   discountPrice?: number;
   categoryId: number | string;
   categoryName?: string;
   image: string;
+  images?: string[];
   videoUrl?: string;
   description: string;
   stock?: number;
+  rating?: number;
+  ratingCount?: number;
 }
 
 export interface Banner {
   id: number | string;
   title: string;
   imageUrl: string;
+  images?: string[];
   videoUrl?: string;
   link?: string;
   isActive: number;
@@ -70,6 +77,7 @@ export interface Order {
   longitude?: number;
   deliveryPhoto?: string;
   invoicePhoto?: string;
+  isRated?: number;
   createdAt: string;
   items: OrderItem[];
 }
@@ -89,11 +97,13 @@ export interface Debt {
   clientId: number | string;
   clientName: string;
   clientPhone: string;
+  shopName?: string;
   orderId?: number | string;
   amount: number;
   dueDate?: string;
   status: 'pending' | 'paid';
   paidAt?: string;
+  payerName?: string;
   increasedAmount?: number;
   increaseReason?: string;
   createdAt: string;
@@ -157,11 +167,24 @@ export interface SecurityAlert {
   createdAt: string;
 }
 
-export interface Rating {
+export interface Review {
   id: number;
-  userId: number;
-  role: string;
+  orderId: number;
+  targetId: number;
+  targetType: 'product' | 'courier' | 'agent';
   rating: number;
-  totalOrders: number;
-  updatedAt: string;
+  comment?: string;
+  createdAt: string;
+}
+
+export interface Shop {
+  id: number;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  clientId: number;
+  agentId: number;
+  createdAt: string;
+  clientName?: string;
 }

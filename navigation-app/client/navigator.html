@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Навигатор | Uzbechka</title>
+    <link href="https://unpkg.com/maplibre-gl@3.2.1/dist/maplibre-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/maplibre-gl@3.2.1/dist/maplibre-gl.js"></script>
+    <style>
+        /* Mobile specific adjustments */
+        .navigator-hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="navigator-hud">
+        <div class="search-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="Куда едем?">
+            <button onclick="handleSearch()" class="btn-primary" style="padding: 8px 15px; border-radius: 8px;">Поиск</button>
+        </div>
+        <div id="speed" class="speedometer" style="display: none;">0 км/ч</div>
+    </div>
+
+    <div id="tripCard" class="trip-card" style="display: none;">
+        <div class="trip-stats">
+            <div id="eta" class="trip-time">-- мин</div>
+            <div id="distance" class="trip-dist">-- км</div>
+        </div>
+        <div class="nav-buttons">
+            <button id="navBtn" class="btn-primary">В ПУТЬ</button>
+            <button onclick="location.reload()" class="btn-circle">✕</button>
+        </div>
+    </div>
+
+    <div class="overlay" style="bottom: 120px; right: 20px; display: flex; flex-direction: column; gap: 10px;">
+        <button onclick="centerOnUser()" class="btn-circle">🧭</button>
+        <button id="toggle3D" class="btn-circle">3D</button>
+    </div>
+
+    <script src="map.js"></script>
+    <script src="navigation.js"></script>
+    <script>
+        const userId = 'driver_' + Math.floor(Math.random() * 1000);
+        let userPos = null;
+        let targetPos = null;
+        let socket;
+
+        // Initialize Map
+        initMap();
+
+        // Initialize WebSocket
+        function initSocket() {
+            socket = new WebSocket(`ws://${window.location.host}`);
+            socket.onopen = () => console.log('Connected to fleet server');
+            socket.onerror = (e) => console.error('WS Error:', e);
+        }
+
+        initSocket();
+
+        // Start GPS tracking
+        startTracking((pos) => {
+            userPos = pos;
+            userMarker.setLngLat([pos.lon, pos.lat]);
+            
+            // Update speedometer
+            const speedEl = document.getElementById('speed');
+            speedEl.style.display = 'block';
+            speedEl.innerText = `${pos.speed} км/ч`;
+
+            // If navigating, tilt and rotate map
+            if (isNavigating) {
+                map.easeTo({
+                    center: [pos.lon, pos.lat],
+                    bearing: pos.heading,
+                    pitch: 60,
+                    duration: 1000
+                });
+            }
+
+            // Sync with server
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'update_location',
+                    id: userId,
+                    lat: pos.lat,
+                    lon: pos.lon,
+                    heading: pos.heading,
+                    speed: pos.speed,
+                    role: 'courier',
+                    name: 'Courier ' + userId.split('_')[1]
+                }));
+            }
+        });
+
+        async function handleSearch() {
+            const query = document.getElementById('searchInput').value;
+            if (!query) return;
+
+            const result = await searchAddress(query);
+            if (result && userPos) {
+                targetPos = result;
+                const stats = await getRoute([userPos.lon, userPos.lat], [result.lon, result.lat]);
+                
+                if (stats) {
+                    document.getElementById('tripCard').style.display = 'flex';
+                    document.getElementById('eta').innerText = `${stats.duration} мин`;
+                    document.getElementById('distance').innerText = `${stats.distance} км`;
+                    
+                    focusOnLocation(result.lat, result.lon, 14, 0, 0);
+                }
+            }
+        }
+
+        document.getElementById('navBtn').addEventListener('click', () => {
+            toggleNavigationMode(true);
+            document.getElementById('navBtn').innerText = 'ЕДЕМ...';
+            centerOnUser();
+        });
+
+        function centerOnUser() {
+            if (userPos) {
+                focusOnLocation(userPos.lat, userPos.lon, 18, isNavigating ? userPos.heading : 0, isNavigating ? 60 : 0);
+            }
+        }
+
+        let is3D = false;
+        document.getElementById('toggle3D').addEventListener('click', () => {
+            is3D = !is3D;
+            map.easeTo({ pitch: is3D ? 60 : 0, duration: 1000 });
+        });
+    </script>
+</body>
+</html>
