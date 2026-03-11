@@ -97,7 +97,10 @@ export const translations = {
     confirmAction: "Подтверждение действия",
     areYouSure: "Вы уверены?",
     yes: "Да",
-    no: "Нет"
+    no: "Нет",
+    add: "В корзину",
+    home: "Главная",
+    location: "Местоположение"
   },
   uz: {
     appName: "Uzbechka",
@@ -197,6 +200,9 @@ export const translations = {
     confirmAction: "Harakatni tasdiqlash",
     areYouSure: "Ishonchingiz komilmi?",
     yes: "Ha",
-    no: "Yo'q"
+    no: "Yo'q",
+    add: "Savatga",
+    home: "Bosh sahifa",
+    location: "Joylashuv"
   }
 };

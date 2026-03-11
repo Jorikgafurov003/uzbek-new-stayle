@@ -17,6 +17,38 @@
             "args": []
         },
         {
+            "type": "node",
+            "request": "launch",
+            "name": "Run mime",
+            "runtimeExecutable": "mime",
+            "cwd": "${workspaceFolder}/node_modules/electron-publish",
+            "args": []
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Run asar",
+            "runtimeExecutable": "asar",
+            "cwd": "${workspaceFolder}",
+            "args": []
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Run asar",
+            "runtimeExecutable": "asar",
+            "cwd": "${workspaceFolder}",
+            "args": []
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Run mime",
+            "runtimeExecutable": "mime",
+            "cwd": "${workspaceFolder}/navigation-app/server",
+            "args": []
+        },
+        {
             "type": "msedge",
             "name": "http://localhost:3000/",
             "request": "launch",

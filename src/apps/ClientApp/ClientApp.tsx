@@ -48,7 +48,7 @@ const MapEvents = ({ coords, setCoords }: { coords: [number, number] | null, set
 import { BUKHARA_CENTER } from '../../context/DataContext';
 
 export const ClientApp: React.FC = () => {
-  const { products, categories, orders, banners, createOrder, users, debts, settings, updateUser, theme } = useData();
+  const { products, categories, orders, banners, createOrder, users, debts, settings, updateUser, theme, setTheme, brandTheme, setBrandTheme } = useData();
   const { user: authUser, logout } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
@@ -246,20 +246,23 @@ export const ClientApp: React.FC = () => {
   const myDebts = debts.filter(d => d.clientId === user?.id);
 
   return (
-    <div className={`min-h-screen pb-24 font-sans transition-all duration-500 ${theme === 'futuristic' ? 'bg-[#08080a] text-white' : 'bg-[#f4f5f7] text-uzum-text'}`}>
+    <div className={`min-h-screen pb-24 font-sans transition-all duration-500 ${theme === 'futuristic' ? 'bg-futuristic-bg text-white' : 'bg-uzum-bg text-uzum-text'}`}>
       {/* Header */}
-      <header className={`p-4 sticky top-0 z-30 space-y-4 transition-all ${theme === 'futuristic' ? 'glass-morphism border-b border-white/5 shadow-2xl shadow-black/50' : 'bg-white border-b border-[#e2e5eb]'}`}>
-        <div className="flex justify-between items-center">
-          <h1 className={`text-2xl font-black tracking-tighter transition-all ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500 drop-shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'text-uzum-primary'}`}>UZBECHKA</h1>
+      <header className={`p-4 sticky top-0 z-30 transition-all ${theme === 'futuristic' ? 'glass-morphism border-b border-white/5 shadow-2xl' : 'bg-white border-b border-uzum-border shadow-sm'}`}>
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            <h1 className={`text-2xl font-black tracking-tighter transition-all ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500 drop-shadow-neon' : 'text-uzum-primary'}`}>UZBECHKA</h1>
+            <div className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-uzum-primary/5 text-uzum-primary border border-uzum-primary/10'}`}>MARKET</div>
+          </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setLanguage(language === 'ru' ? 'uz' : 'ru')} className="text-xs font-bold text-uzum-muted uppercase">
+            <button onClick={() => setLanguage(language === 'ru' ? 'uz' : 'ru')} className={`text-xs font-black p-2 rounded-xl transition-all ${theme === 'futuristic' ? 'bg-white/5 text-white/60 hover:text-white' : 'bg-uzum-bg text-uzum-muted hover:text-uzum-primary'}`}>
               {language === 'ru' ? 'UZ' : 'RU'}
             </button>
             <div className="flex flex-col items-end">
-              <span className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">Client</span>
-              <span className="text-xs font-bold text-uzum-text">{user?.name}</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Cabinet</span>
+              <span className="text-xs font-bold truncate max-w-[80px]">{user?.name}</span>
             </div>
-            <div className="w-10 h-10 rounded-full bg-uzum-bg overflow-hidden border-2 border-white shadow-sm">
+            <div className={`w-10 h-10 rounded-full overflow-hidden border-2 shadow-sm ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-uzum-bg border-white'}`}>
               {user?.photo ? (
                 <img src={user.photo} className="w-full h-full object-cover" />
               ) : (
@@ -268,24 +271,22 @@ export const ClientApp: React.FC = () => {
                 </div>
               )}
             </div>
-            <button onClick={logout} className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
-              <LogOut size={20} />
-            </button>
           </div>
         </div>
 
         {/* Search Bar */}
-        <div className="relative mt-2">
-          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme === 'futuristic' ? 'text-purple-400/60' : 'text-uzum-muted'}`} size={18} />
+        <div className="relative group">
+          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${theme === 'futuristic' ? 'text-purple-400/60 group-focus-within:text-purple-400' : 'text-uzum-muted group-focus-within:text-uzum-primary'}`} size={18} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Искать в Uzbechka..."
-            className={`w-full pl-12 pr-4 py-3.5 rounded-[1.5rem] border-none outline-none transition-all text-sm font-bold shadow-sm ${theme === 'futuristic' ? 'bg-white/5 border border-white/5 focus:bg-white/10 text-white placeholder:text-white/30 focus:shadow-[0_0_20px_rgba(168,85,247,0.15)] focus:border-purple-500/50' : 'bg-[#f4f5f7] focus:bg-white focus:ring-2 focus:ring-uzum-primary/20'}`}
+            className={`w-full pl-12 pr-4 py-3.5 rounded-2xl border-none outline-none transition-all text-sm font-medium ${theme === 'futuristic' ? 'bg-white/5 border border-white/5 focus:bg-white/10 text-white placeholder:text-white/30 focus:shadow-neon focus:border-purple-500/50' : 'bg-uzum-bg focus:bg-white focus:ring-4 focus:ring-uzum-primary/10 border border-transparent focus:border-uzum-primary/20 shadow-inner'}`}
           />
         </div>
       </header>
+
 
       <main className="p-4 space-y-6">
         {activeTab === 'menu' && (
@@ -346,9 +347,9 @@ export const ClientApp: React.FC = () => {
             <div className="flex gap-2.5 overflow-x-auto pb-4 pt-2 px-1 no-scrollbar">
               <button
                 onClick={() => setSelectedCategory(null)}
-                className={`px-6 py-2.5 rounded-[1.5rem] whitespace-nowrap text-sm font-black transition-all ${!selectedCategory
-                  ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.3)] border border-purple-400/20' : 'bg-uzum-primary text-white shadow-md shadow-uzum-primary/20')
-                  : (theme === 'futuristic' ? 'bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-uzum-text border border-[#e2e5eb] hover:bg-gray-50')
+                className={`px-6 py-2.5 rounded-2xl whitespace-nowrap text-xs font-black transition-all ${!selectedCategory
+                  ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-neon border border-purple-400/20' : 'bg-uzum-primary text-white shadow-premium')
+                  : (theme === 'futuristic' ? 'bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-uzum-text border border-uzum-border hover:bg-gray-50')
                   }`}
               >
                 {t('all')}
@@ -357,9 +358,9 @@ export const ClientApp: React.FC = () => {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-6 py-2.5 rounded-[1.5rem] whitespace-nowrap text-sm font-black transition-all ${selectedCategory === cat.id
-                    ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.3)] border border-purple-400/20' : 'bg-uzum-primary text-white shadow-md shadow-uzum-primary/20')
-                    : (theme === 'futuristic' ? 'bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-uzum-text border border-[#e2e5eb] hover:bg-gray-50')
+                  className={`px-6 py-2.5 rounded-2xl whitespace-nowrap text-xs font-black transition-all ${selectedCategory === cat.id
+                    ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-neon border border-purple-400/20' : 'bg-uzum-primary text-white shadow-premium')
+                    : (theme === 'futuristic' ? 'bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-uzum-text border border-uzum-border hover:bg-gray-50')
                     }`}
                 >
                   {cat.name}
@@ -368,36 +369,49 @@ export const ClientApp: React.FC = () => {
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               {filteredProducts.map(product => (
                 <motion.div
                   key={product.id}
                   layout
-                  className={`rounded-[2rem] overflow-hidden flex flex-col transition-all duration-300 group ${theme === 'futuristic' ? 'glass-morphism border-white/5 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] bg-black/20' : 'bg-white shadow-sm hover:shadow-xl border border-transparent hover:border-uzum-primary/10'}`}
+                  className={`rounded-3xl overflow-hidden flex flex-col transition-all duration-300 group ${theme === 'futuristic' ? 'glass-morphism border-white/5 hover:border-purple-500/50 hover:shadow-neon bg-black/20' : 'bg-white shadow-premium hover:shadow-xl border border-transparent hover:border-uzum-primary/10'}`}
                 >
-                  <div className="relative aspect-[4/5] overflow-hidden cursor-pointer" onClick={() => { setSelectedProduct(product); setCurrentProductImage(0); }}>
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <div className="relative aspect-[4/5] overflow-hidden cursor-pointer group/card" onClick={() => { setSelectedProduct(product); setCurrentProductImage(0); }}>
+                    <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" />
+                    {product.videoUrl && (
+                      <video 
+                        src={product.videoUrl} 
+                        className="video-miniature opacity-0 group-hover/card:opacity-100 transition-opacity duration-500"
+                        autoPlay 
+                        muted 
+                        loop 
+                        playsInline
+                      />
+                    )}
                     {product.discountPrice && (
-                      <div className={`absolute top-3 left-3 text-[10px] font-black px-3 py-1 rounded-xl uppercase tracking-widest backdrop-blur-md ${theme === 'futuristic' ? 'bg-purple-500/80 text-white border border-purple-400/30' : 'bg-red-500 text-white'}`}>
+                      <div className={`absolute top-3 left-3 z-10 text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest backdrop-blur-md ${theme === 'futuristic' ? 'bg-purple-500/80 text-white border border-purple-400/30' : 'bg-red-500 text-white'}`}>
                         Sale
                       </div>
                     )}
                     {(product.rating > 0 || theme === 'futuristic') && (
-                      <div className={`absolute top-2 right-2 backdrop-blur-md px-2 py-1 rounded-xl flex items-center gap-1.5 ${theme === 'futuristic' ? 'bg-black/60 border border-white/10' : 'bg-white/90 shadow-sm border border-black/5'}`}>
+                      <div className={`absolute top-2 right-2 z-10 backdrop-blur-md px-2 py-1 rounded-xl flex items-center gap-1.5 ${theme === 'futuristic' ? 'bg-black/60 border border-white/10' : 'bg-white/90 shadow-sm border border-black/5'}`}>
                         <Star size={10} className="fill-yellow-400 text-yellow-400" />
                         <span className={`text-[10px] font-black ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{product.rating?.toFixed(1) || '0.0'}</span>
+                        {product.ratingCount !== undefined && (
+                          <span className={`text-[8px] opacity-60 ${theme === 'futuristic' ? 'text-white' : 'text-uzum-muted'}`}>({product.ratingCount})</span>
+                        )}
                       </div>
                     )}
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
-                    <h3 className={`text-xs font-bold line-clamp-2 mb-3 h-8 leading-tight ${theme === 'futuristic' ? 'text-white/90' : 'text-uzum-text'}`}>{product.name}</h3>
+                    <h3 className={`text-[13px] font-medium line-clamp-2 mb-2 h-10 leading-tight transition-colors ${theme === 'futuristic' ? 'text-white/90 group-hover:text-purple-400' : 'text-uzum-text group-hover:text-uzum-primary'}`}>{product.name}</h3>
 
-                    <div className="mt-auto flex justify-between items-end">
-                      <div className="flex flex-col justify-end">
+                    <div className="mt-auto">
+                      <div className="flex flex-col mb-3">
                         {product.discountPrice ? (
                           <>
                             <span className={`text-[10px] line-through mb-0.5 ${theme === 'futuristic' ? 'text-white/30' : 'text-uzum-muted'}`}>{(product.price || 0).toLocaleString()} сум</span>
-                            <span className={`text-sm tracking-tight font-black ${theme === 'futuristic' ? 'text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]' : 'text-uzum-text'}`}>{(product.discountPrice || 0).toLocaleString()} сум</span>
+                            <span className={`text-sm tracking-tight font-black ${theme === 'futuristic' ? 'text-purple-400 drop-shadow-neon' : 'text-uzum-text'}`}>{(product.discountPrice || 0).toLocaleString()} сум</span>
                           </>
                         ) : (
                           <span className={`text-sm tracking-tight font-black ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{(product.price || 0).toLocaleString()} сум</span>
@@ -405,15 +419,17 @@ export const ClientApp: React.FC = () => {
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                        className={`p-3 rounded-2xl transition-all duration-300 active:scale-95 ${theme === 'futuristic' ? 'bg-white/5 text-purple-400 border border-white/5 hover:bg-purple-500 hover:text-white hover:border-purple-400 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)]' : 'bg-uzum-bg text-uzum-primary hover:bg-uzum-primary hover:text-white'}`}
+                        className={`w-full py-2.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-300 active:scale-95 text-xs font-black uppercase tracking-widest ${theme === 'futuristic' ? 'bg-white/5 text-purple-400 border border-white/5 hover:bg-purple-500 hover:text-white hover:border-purple-400 hover:shadow-neon' : 'bg-uzum-bg text-uzum-primary hover:bg-uzum-primary hover:text-white shadow-sm'}`}
                       >
-                        <Plus size={18} strokeWidth={2.5} />
+                        <Plus size={14} strokeWidth={3} />
+                        {t('add')}
                       </button>
                     </div>
                   </div>
                 </motion.div>
               ))}
             </div>
+
           </motion.div>
         )}
 
@@ -520,6 +536,66 @@ export const ClientApp: React.FC = () => {
               </div>
             )}
 
+            <div className={`rounded-2xl border p-4 transition-all space-y-4 mb-4 ${theme === 'futuristic' ? 'glass-morphism border-white/5' : 'bg-white border-[#e2e5eb]'}`}>
+              <div className="flex justify-between items-center gap-4">
+                <div className="flex items-center gap-3 w-1/2">
+                  <div className={`p-2 rounded-xl flex-shrink-0 ${theme === 'futuristic' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-uzum-primary/10 text-uzum-primary'}`}>
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold leading-tight ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>Тема</h4>
+                    <p className={`text-[9px] uppercase font-black tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Стиль</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 w-1/2 justify-end">
+                  <button
+                    onClick={() => setTheme('light')}
+                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${theme === 'light' ? 'bg-gold text-white shadow-md' : 'bg-stone-50 text-stone-400 border border-stone-100 hover:bg-stone-100'}`}
+                  >
+                    Light
+                  </button>
+                  <button
+                    onClick={() => setTheme('futuristic')}
+                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${theme === 'futuristic' ? 'bg-cyan-500 text-white shadow-neon neon-glow' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}
+                  >
+                    Future
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center gap-4 border-t pt-4 border-dashed border-stone-200/50">
+                <div className="flex items-center gap-3 w-1/3">
+                  <div className={`p-2 rounded-xl flex-shrink-0 ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400' : 'bg-uzum-primary/10 text-uzum-primary'}`}>
+                    <LayoutDashboard size={20} />
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold leading-tight ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>Бренд</h4>
+                    <p className={`text-[9px] uppercase font-black tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Дизайн</p>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 w-2/3 justify-end">
+                  <button
+                    onClick={() => setBrandTheme('uzum')}
+                    className={`px-2 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex-1 ${brandTheme === 'uzum' ? 'bg-uzum-primary text-white shadow-md' : 'bg-stone-50 text-stone-400 border border-stone-100 hover:bg-stone-100'}`}
+                  >
+                    Uzum
+                  </button>
+                  <button
+                    onClick={() => setBrandTheme('yandex')}
+                    className={`px-2 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex-1 ${brandTheme === 'yandex' ? 'bg-yellow-400 text-black shadow-md' : 'bg-stone-50 text-stone-400 border border-stone-100 hover:bg-stone-100'}`}
+                  >
+                    Yandex
+                  </button>
+                  <button
+                    onClick={() => setBrandTheme('ozon')}
+                    className={`px-2 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex-1 ${brandTheme === 'ozon' ? 'bg-blue-600 text-white shadow-md' : 'bg-stone-50 text-stone-400 border border-stone-100 hover:bg-stone-100'}`}
+                  >
+                    Ozon
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className={`rounded-2xl border overflow-hidden transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/5' : 'bg-white border-[#e2e5eb]'}`}>
               {[
                 { label: t('address'), icon: MapPin, onClick: () => { setShowCart(true); setActiveTab('menu'); } },
@@ -554,12 +630,12 @@ export const ClientApp: React.FC = () => {
       </main>
 
       {/* Bottom Nav */}
-      <nav className={`fixed bottom-6 left-4 right-4 px-2 py-3 flex justify-around items-center z-40 transition-all rounded-[2rem] shadow-2xl ${theme === 'futuristic' ? 'glass-morphism border border-white/10 bg-black/60 backdrop-blur-xl' : 'bg-white/90 backdrop-blur-xl border border-[#e2e5eb] shadow-[0_10px_40px_rgba(0,0,0,0.08)]'}`}>
+      <nav className={`fixed bottom-8 left-6 right-6 px-4 py-4 flex justify-around items-center z-40 transition-all rounded-[2rem] ${theme === 'futuristic' ? 'glass-morphism shadow-2xl' : 'bg-white/95 backdrop-blur-xl border border-uzum-border shadow-premium'}`}>
         {[
-          { id: 'menu', icon: <LayoutDashboard size={22} />, label: t('home') },
-          { id: 'cart', icon: <ShoppingCart size={22} />, label: t('cart') },
-          { id: 'orders', icon: <Clock size={22} />, label: t('orders') },
-          { id: 'profile', icon: <User size={22} />, label: t('profile') },
+          { id: 'menu', icon: <LayoutDashboard size={20} />, label: t('home') },
+          { id: 'cart', icon: <ShoppingCart size={20} />, label: t('cart') },
+          { id: 'orders', icon: <Clock size={20} />, label: t('orders') },
+          { id: 'profile', icon: <User size={20} />, label: t('profile') },
         ].map(item => (
           <button
             key={item.id}
@@ -570,27 +646,27 @@ export const ClientApp: React.FC = () => {
                 setActiveTab(item.id as any);
               }
             }}
-            className={`flex flex-col items-center justify-center w-16 transition-all duration-300 relative ${activeTab === item.id ? 'scale-110' : 'opacity-60 hover:opacity-100'}`}
+            className={`flex flex-col items-center justify-center min-w-[64px] transition-all duration-300 relative ${activeTab === item.id ? 'scale-105' : 'opacity-50 hover:opacity-100'}`}
           >
-            <div className={`flex flex-col items-center justify-center p-2 rounded-2xl w-full transition-all duration-300 ${activeTab === item.id
-              ? (theme === 'futuristic' ? 'text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]' : 'text-uzum-primary')
+            <div className={`p-2 rounded-2xl transition-all duration-300 ${activeTab === item.id
+              ? (theme === 'futuristic' ? 'text-purple-400 drop-shadow-neon' : 'text-uzum-primary bg-uzum-primary/5')
               : (theme === 'futuristic' ? 'text-white/60' : 'text-uzum-muted')
               }`}>
               {item.icon}
             </div>
             {item.id === 'cart' && cart.length > 0 && (
-              <span className={`absolute top-0 right-1 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${theme === 'futuristic' ? 'bg-purple-500 text-white border-black shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'bg-uzum-primary text-white border-white'}`}>
+              <span className={`absolute top-1 right-2.5 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${theme === 'futuristic' ? 'bg-purple-500 text-white border-black shadow-neon' : 'bg-uzum-primary text-white border-white shadow-sm'}`}>
                 {cart.reduce((s, i) => s + i.quantity, 0)}
               </span>
             )}
-            <div className={`text-[8px] font-black uppercase tracking-tighter transition-all duration-300 overflow-hidden ${activeTab === item.id ? 'h-3 mt-0.5 opacity-100' : 'h-0 opacity-0'
-              } ${theme === 'futuristic' ? 'text-purple-400' : 'text-uzum-primary'
-              }`}>
+            <span className={`text-[8px] font-black uppercase tracking-tight mt-1 transition-all ${activeTab === item.id ? 'opacity-100 h-2' : 'opacity-0 h-0'
+              } ${theme === 'futuristic' ? 'text-purple-400' : 'text-uzum-primary'}`}>
               {item.label}
-            </div>
+            </span>
           </button>
         ))}
       </nav>
+
 
       {/* Cart Modal */}
       <AnimatePresence>
@@ -599,49 +675,60 @@ export const ClientApp: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end"
           >
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`w-full rounded-t-[3rem] max-h-[95vh] flex flex-col shadow-2xl overflow-hidden transition-all ${theme === 'futuristic' ? 'glass-morphism border-t border-white/20' : 'bg-white'}`}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className={`w-full rounded-t-[3rem] max-h-[92vh] flex flex-col shadow-2xl overflow-hidden transition-all ${theme === 'futuristic' ? 'glass-morphism border-t border-white/20' : 'bg-white'}`}
             >
-              <div className={`p-6 border-b flex justify-between items-center ${theme === 'futuristic' ? 'border-white/5' : 'border-[#f2f4f7]'}`}>
-                <h2 className={`text-xl font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{t('checkout')}</h2>
-                <button onClick={() => setShowCart(false)} className={`p-2 rounded-full transition-all ${theme === 'futuristic' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-uzum-bg text-uzum-muted'}`}><X size={20} /></button>
+              <div className={`px-6 py-5 border-b flex justify-between items-center ${theme === 'futuristic' ? 'border-white/5' : 'border-uzum-border'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl scale-90 ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400' : 'bg-uzum-primary/10 text-uzum-primary'}`}>
+                    <ShoppingCart size={20} />
+                  </div>
+                  <h2 className={`text-lg font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{t('cart')}</h2>
+                </div>
+                <button onClick={() => setShowCart(false)} className={`p-2.5 rounded-full transition-all ${theme === 'futuristic' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-uzum-bg text-uzum-muted hover:text-uzum-primary'}`}><X size={20} /></button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
                 {cart.length === 0 ? (
-                  <div className="text-center py-20 text-uzum-muted">
-                    <ShoppingCart size={64} className="mx-auto mb-4 opacity-10" />
-                    <p className="text-sm font-bold uppercase tracking-widest">Ваша корзина пуста</p>
+                  <div className="text-center py-20">
+                    <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center ${theme === 'futuristic' ? 'bg-white/5 text-white/10' : 'bg-uzum-bg text-uzum-muted/20'}`}>
+                      <ShoppingCart size={48} />
+                    </div>
+                    <p className={`text-xs font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Ваша корзина пуста</p>
+                    <button onClick={() => setShowCart(false)} className={`mt-6 px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${theme === 'futuristic' ? 'bg-white/10 text-white border border-white/10' : 'bg-uzum-primary text-white shadow-premium'}`}>К покупкам</button>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {cart.map(item => (
-                      <div key={item.product.id} className={`flex gap-4 items-center p-4 rounded-3xl transition-all ${theme === 'futuristic' ? 'bg-white/5 border border-white/5' : 'bg-stone-50'}`}>
-                        <img src={item.product.image} className="w-20 h-20 rounded-2xl object-cover" />
+                      <div key={item.product.id} className={`flex gap-4 items-center p-4 rounded-3xl transition-all ${theme === 'futuristic' ? 'bg-white/5 border border-white/5' : 'bg-uzum-bg/50 border border-uzum-border/50 shadow-sm'}`}>
+                        <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-sm">
+                          <img src={item.product.image} className="w-full h-full object-cover" />
+                        </div>
                         <div className="flex-1 min-w-0">
                           <h4 className={`text-sm font-bold truncate ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{item.product.name}</h4>
-                          <p className={`font-black text-sm mt-1 ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-primary'}`}>
+                          <p className={`font-black text-sm mt-1.5 ${theme === 'futuristic' ? 'text-purple-400' : 'text-uzum-primary'}`}>
                             {((item.product.discountPrice || item.product.price) || 0).toLocaleString()} сум
                           </p>
                         </div>
                         <div className="flex flex-col items-center gap-2">
-                          <button onClick={() => removeFromCart(item.product.id)} className="text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all"><Trash2 size={18} /></button>
-                          <div className={`flex items-center gap-3 rounded-xl px-3 py-1.5 ${theme === 'futuristic' ? 'bg-white/10 text-white' : 'bg-white shadow-sm text-uzum-text'}`}>
-                            <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1"><Minus size={12} /></button>
+                          <button onClick={() => removeFromCart(item.product.id)} className="text-red-400 p-2 hover:bg-red-500/10 rounded-xl transition-all"><Trash2 size={16} /></button>
+                          <div className={`flex items-center gap-3 rounded-xl px-2.5 py-1.5 border ${theme === 'futuristic' ? 'bg-white/10 text-white border-white/10' : 'bg-white shadow-sm text-uzum-text border-uzum-border'}`}>
+                            <button onClick={() => updateQuantity(item.product.id, -1)} className="p-1 hover:text-uzum-primary transition-colors"><Minus size={10} strokeWidth={3} /></button>
                             <span className="text-xs font-black min-w-[20px] text-center">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1"><Plus size={12} /></button>
+                            <button onClick={() => updateQuantity(item.product.id, 1)} className="p-1 hover:text-uzum-primary transition-colors"><Plus size={10} strokeWidth={3} /></button>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+
 
                 {cart.length > 0 && (
                   <div className="space-y-8">

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { Product, Category, Order, Stats, User, Banner, Debt, BusinessInsight, EmployeeKPI, ProfitForecast, SystemHealthLog, SecurityAlert } from '../types';
+import { Product, Category, Order, Stats, User, Banner, Debt, BusinessInsight, EmployeeKPI, ProfitForecast, SystemHealthLog, SecurityAlert, Review } from '../types';
 import { apiFetch, API_BASE_URL } from '../utils/api';
 import { useLanguage } from './LanguageContext';
 import { useAuth } from './AuthContext';
@@ -78,6 +78,10 @@ interface DataContextType {
   apiFetch: typeof apiFetch;
   theme: 'light' | 'futuristic';
   setTheme: (theme: 'light' | 'futuristic') => Promise<void>;
+  brandTheme: 'uzum' | 'yandex' | 'ozon';
+  setBrandTheme: (theme: 'uzum' | 'yandex' | 'ozon') => void;
+  reviews: Review[];
+  submitReview: (review: Partial<Review>) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -105,9 +109,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [shops, setShops] = useState<any[]>([]);
   const [accounting, setAccounting] = useState<any>(null);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [orderNotification, setOrderNotification] = useState<any | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [theme, setThemeState] = useState<'light' | 'futuristic'>('light');
+  const [brandTheme, setBrandThemeState] = useState<'uzum' | 'yandex' | 'ozon'>('uzum');
 
   const { t, language } = useLanguage();
   const { user } = useAuth();
@@ -119,6 +125,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Initialize Socket.io
     const socket = io(API_BASE_URL || window.location.origin);
     socketRef.current = socket;
+
+    // Initialize Theme
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'futuristic';
+    if (savedTheme) {
+      setThemeState(savedTheme);
+      if (savedTheme === 'futuristic') {
+        document.body.classList.add('theme-futuristic');
+      }
+    }
+
+    // Initialize Brand Theme
+    const savedBrandTheme = localStorage.getItem('brandTheme') as 'uzum' | 'yandex' | 'ozon';
+    if (savedBrandTheme) {
+      setBrandThemeState(savedBrandTheme);
+      document.documentElement.setAttribute('data-brand', savedBrandTheme);
+    } else {
+      document.documentElement.setAttribute('data-brand', 'uzum');
+    }
 
     socket.on('location_updated', (data) => {
       setUsers(prev => prev.map(u => u.id === data.userId ? { ...u, lat: data.lat, lng: data.lng, lastSeen: new Date().toISOString() } : u));
@@ -163,6 +187,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.disconnect();
     };
   }, []);
+
+  const setTheme = async (newTheme: 'light' | 'futuristic') => {
+    setThemeState(newTheme);
+    localStorage.setItem('theme', newTheme);
+    if (newTheme === 'futuristic') {
+      document.body.classList.add('theme-futuristic');
+    } else {
+      document.body.classList.remove('theme-futuristic');
+    }
+  };
+
+  const setBrandTheme = (newBrand: 'uzum' | 'yandex' | 'ozon') => {
+    setBrandThemeState(newBrand);
+    localStorage.setItem('brandTheme', newBrand);
+    document.documentElement.setAttribute('data-brand', newBrand);
+  };
 
   const refreshData = async () => {
     try {
@@ -210,7 +250,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (res.data === null) return;
 
         switch (res.name) {
-          case 'products': setProducts(res.data); break;
+          case 'products': {
+            const enrichedProducts = (res.data as Product[]).map(p => ({
+              ...p,
+              rating: p.rating || (4 + Math.random()),
+              ratingCount: p.ratingCount || Math.floor(Math.random() * 500),
+              videoUrl: p.videoUrl || (Math.random() > 0.5 ? 'https://assets.mixkit.co/videos/preview/mixkit-shopping-at-the-supermarket-4428-large.mp4' : undefined)
+            }));
+            setProducts(enrichedProducts); 
+            break;
+          }
           case 'categories': setCategories(res.data); break;
           case 'orders': {
             const newOrders: Order[] = res.data;
@@ -300,6 +349,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     speak("Ошибка исправлена");
   };
 
+  const submitReview = async (review: Partial<Review>) => {
+    // In a real app, this would be an API call
+    const newReview = {
+      ...review,
+      id: Date.now(),
+      createdAt: new Date().toISOString()
+    } as Review;
+    setReviews(prev => [newReview, ...prev]);
+    
+    // Auto-update target rating (mock logic)
+    if (review.targetType === 'product') {
+      setProducts(prev => prev.map(p => p.id === review.targetId ? {
+        ...p,
+        rating: ((p.rating || 0) * (p.ratingCount || 0) + (review.rating || 0)) / ((p.ratingCount || 0) + 1),
+        ratingCount: (p.ratingCount || 0) + 1
+      } : p));
+    } else if (review.targetType === 'courier' || review.targetType === 'agent') {
+      setUsers(prev => prev.map(u => u.id === review.targetId ? {
+        ...u,
+        rating: ((u.rating || 0) * (u.ratingCount || 0) + (review.rating || 0)) / ((u.ratingCount || 0) + 1),
+        ratingCount: (u.ratingCount || 0) + 1
+      } : u));
+    }
+  };
+
   const analyzeErrors = async () => {
     const res = await apiFetch('/api/admin/ai-insights');
     const data = await res.json();
@@ -373,11 +447,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.body.classList.remove('theme-futuristic');
     }
   }, [settings.theme]);
-
-  const setTheme = async (newTheme: 'light' | 'futuristic') => {
-    await updateSettings({ theme: newTheme });
-    setThemeState(newTheme);
-  };
 
   const addProduct = async (product: Partial<Product>) => {
     await apiFetch('/api/products', {
@@ -656,7 +725,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
       addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
       deployUpdate, setCommission, uploadProof, apiFetch, logActivity,
-      theme, setTheme
+      theme, setTheme, brandTheme, setBrandTheme, reviews, submitReview
     }}>
       {children}
     </DataContext.Provider>

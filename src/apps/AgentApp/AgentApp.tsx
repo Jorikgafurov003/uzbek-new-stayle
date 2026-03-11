@@ -330,8 +330,10 @@ export const AgentApp: React.FC = () => {
                           value={selectedShopId}
                         >
                           <option value="">-- Без магазина --</option>
-                          {shops.filter(s => s.clientId === selectedClient?.id).map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
+                          {shops.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} {s.clientId !== selectedClient?.id && s.clientName ? `(${s.clientName})` : ''}
+                            </option>
                           ))}
                         </select>
                         <MapPin className={`absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`} size={20} />

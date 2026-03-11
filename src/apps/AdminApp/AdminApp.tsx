@@ -86,17 +86,17 @@ const LocationPicker = ({ onLocationSelect }: { onLocationSelect: (lat: number, 
 export const AdminApp: React.FC = () => {
   const {
     products, categories, orders, stats, users, banners, settings, debts, systemErrors, shops,
-    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, accounting, activityLogs, orderNotification, setOrderNotification,
+    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, accounting, activityLogs, orderNotification, setOrderNotification, reviews,
     refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
     updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
     addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
     deployUpdate, setCommission, uploadProof, apiFetch, addExpense, deleteExpense,
-    theme, setTheme
+    theme, setTheme, brandTheme, setBrandTheme
   } = useData();
   const { logout, user: currentUser } = useAuth();
   const { register } = useAuth();
   const { t, language, setLanguage } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'shops' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries' | 'accounting' | 'warehouse'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'shops' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries' | 'accounting' | 'warehouse' | 'reviews'>('dashboard');
   const [shopTab, setShopTab] = useState<'active' | 'archived'>('active');
   const [debtSubTab, setDebtSubTab] = useState<'list' | 'history'>('list');
   const [telegramMessage, setTelegramMessage] = useState('');
@@ -1748,6 +1748,39 @@ export const AdminApp: React.FC = () => {
                   </div>
                 </div>
 
+                <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-stone-50 border-stone-100'}`}>
+                  <div className={`p-2 rounded-xl ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400' : 'bg-uzum-primary/10 text-uzum-primary'}`}>
+                    <LayoutDashboard size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className={`text-sm font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>Бренд Маркетплейса</h4>
+                    <p className={`text-[10px] uppercase font-black tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Выберите стиль бренда</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBrandTheme('uzum')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${brandTheme === 'uzum' ? 'bg-uzum-primary text-white shadow-lg shadow-uzum-primary/20' : (theme === 'futuristic' ? 'bg-white/5 text-white/40 border border-white/10' : 'bg-white text-stone-400 border border-stone-100')}`}
+                    >
+                      Uzum
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBrandTheme('yandex')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${brandTheme === 'yandex' ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : (theme === 'futuristic' ? 'bg-white/5 text-white/40 border border-white/10' : 'bg-white text-stone-400 border border-stone-100')}`}
+                    >
+                      Yandex
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBrandTheme('ozon')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${brandTheme === 'ozon' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : (theme === 'futuristic' ? 'bg-white/5 text-white/40 border border-white/10' : 'bg-white text-stone-400 border border-stone-100')}`}
+                    >
+                      Ozon
+                    </button>
+                  </div>
+                </div>
+
                 <div className="pt-4">
                   <button type="submit" className={`w-full font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl transition-all active:scale-95 ${theme === 'futuristic' ? 'bg-cyan-500 text-white neon-glow' : 'gold-gradient text-white hover:shadow-gold/30'}`}>
                     {t('saveSettings')}
@@ -1914,6 +1947,119 @@ export const AdminApp: React.FC = () => {
               theme={theme}
             />
           )}
+
+          {activeTab === 'reviews' && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-20">
+              <div className="flex justify-between items-center">
+                <h2 className={`text-2xl font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>Отзывы и Оценки</h2>
+                <div className="flex gap-2">
+                  <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border ${theme === 'futuristic' ? 'bg-white/5 border-white/10 text-cyan-400' : 'bg-uzum-bg text-uzum-muted border-stone-100'}`}>
+                    Всего отзывов: {reviews.length}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Product Reviews */}
+                <div className="space-y-4">
+                  <h3 className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${theme === 'futuristic' ? 'text-cyan-400' : 'text-stone-400'}`}>
+                    <Package size={14} /> Отзывы о товарах
+                  </h3>
+                  <div className="space-y-3">
+                    {reviews.filter(r => r.type === 'product').length > 0 ? (
+                      reviews.filter(r => r.type === 'product').map(review => {
+                        const product = products.find(p => p.id === (review.targetId as any));
+                        return (
+                          <div key={review.id} className={`p-4 rounded-3xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-white border-stone-100'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <StarRating rating={review.rating} size={10} />
+                              <span className="text-[8px] font-bold text-stone-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-xs font-bold text-stone-800 mb-1">{product?.name || 'Удаленный товар'}</p>
+                            <p className="text-[10px] text-stone-500 italic mb-2">"{review.comment}"</p>
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-stone-100 overflow-hidden">
+                                {users.find(u => u.id === review.userId)?.photo ? (
+                                  <img src={users.find(u => u.id === review.userId)?.photo} className="w-full h-full object-cover" />
+                                ) : <User size={10} className="m-auto text-stone-300" />}
+                              </div>
+                              <span className="text-[9px] font-black text-stone-400 uppercase">{users.find(u => u.id === review.userId)?.name || 'Аноним'}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-[10px] text-stone-400 italic">Нет отзывов о товарах</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Agent Reviews */}
+                <div className="space-y-4">
+                  <h3 className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${theme === 'futuristic' ? 'text-purple-400' : 'text-stone-400'}`}>
+                    <Users size={14} /> Отзывы об агентах
+                  </h3>
+                  <div className="space-y-3">
+                    {reviews.filter(r => r.type === 'agent').length > 0 ? (
+                      reviews.filter(r => r.type === 'agent').map(review => {
+                        const agent = users.find(u => u.id === (review.targetId as any));
+                        return (
+                          <div key={review.id} className={`p-4 rounded-3xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-white border-stone-100'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <StarRating rating={review.rating} size={10} />
+                              <span className="text-[8px] font-bold text-stone-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 rounded-lg bg-stone-100 overflow-hidden">
+                                {agent?.photo ? <img src={agent.photo} className="w-full h-full object-cover" /> : <User size={12} className="m-auto" />}
+                              </div>
+                              <p className="text-xs font-bold text-stone-800">{agent?.name || 'Неизвестный агент'}</p>
+                            </div>
+                            <p className="text-[10px] text-stone-500 italic mb-2">"{review.comment}"</p>
+                            <span className="text-[9px] font-black text-stone-400 uppercase">— {users.find(u => u.id === review.userId)?.name || 'Клиент'}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-[10px] text-stone-400 italic">Нет отзывов об агентах</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Courier Reviews */}
+                <div className="space-y-4">
+                  <h3 className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${theme === 'futuristic' ? 'text-orange-400' : 'text-stone-400'}`}>
+                    <Truck size={14} /> Отзывы о курьерах
+                  </h3>
+                  <div className="space-y-3">
+                    {reviews.filter(r => r.type === 'courier').length > 0 ? (
+                      reviews.filter(r => r.type === 'courier').map(review => {
+                        const courier = users.find(u => u.id === (review.targetId as any));
+                        return (
+                          <div key={review.id} className={`p-4 rounded-3xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-white border-stone-100'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <StarRating rating={review.rating} size={10} />
+                              <span className="text-[8px] font-bold text-stone-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 rounded-lg bg-stone-100 overflow-hidden">
+                                {courier?.photo ? <img src={courier.photo} className="w-full h-full object-cover" /> : <Truck size={12} className="m-auto" />}
+                              </div>
+                              <p className="text-xs font-bold text-stone-800">{courier?.name || 'Неизвестный курьер'}</p>
+                            </div>
+                            <p className="text-[10px] text-stone-500 italic mb-2">"{review.comment}"</p>
+                            <span className="text-[9px] font-black text-stone-400 uppercase">— {users.find(u => u.id === review.userId)?.name || 'Клиент'}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-[10px] text-stone-400 italic">Нет отзывов о курьерах</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </Suspense>
       </main >
 
@@ -1937,6 +2083,7 @@ export const AdminApp: React.FC = () => {
           { id: 'shops', icon: <Store size={20} />, label: 'Shops' },
           { id: 'users', icon: <Users size={20} />, label: t('users') },
           { id: 'settings', icon: <SettingsIcon size={20} />, label: t('settings') },
+          { id: 'reviews', icon: <Star size={20} />, label: 'Reviews' },
         ].map(item => (
           <button
             key={item.id}
