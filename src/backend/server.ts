@@ -352,31 +352,49 @@ async function startServer() {
   // Auth
   app.post("/api/auth/login", async (req, res) => {
     const { phone, password } = req.body;
-    if (phone === '+998936584455' && password === '1210999') {
-      let admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
-      if (!admin) {
-        await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Super Admin', phone, password, 'admin');
-        admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+    try {
+      if (phone === '+998936584455' && password === '1210999') {
+        let admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+        if (!admin) {
+          await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Super Admin', phone, password, 'admin');
+          admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+        }
+        return res.json(admin);
       }
-      return res.json(admin);
+      const user = await db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
+      if (user) res.json(user);
+      else res.status(401).json({ error: "Invalid credentials" });
+    } catch (e: any) {
+      console.error("[Login Error]:", e);
+      res.status(500).json({ error: "Login failed", message: e.message });
     }
-    const user = await db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
-    if (user) res.json(user);
-    else res.status(401).json({ error: "Invalid credentials" });
   });
 
   app.post("/api/auth/register", async (req, res) => {
     const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
     try {
+      console.log(`[Registration Attempt]: phone=${phone}, name=${name}`);
       const finalRole = (phone === '+998936584455') ? 'admin' : (role || 'client');
-      const result = await db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
+      
+      const insertResult = await db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
         name, phone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
       );
-      const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
+      
+      const userId = insertResult.lastInsertRowid;
+      if (!userId) {
+        throw new Error("Failed to retrieve new user ID after insertion");
+      }
+
+      const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+      console.log(`[Registration Success]: user_id=${userId}`);
       res.json(user);
     } catch (e: any) {
-      console.error("Register error:", e);
-      res.status(400).json({ error: "Phone number already registered" });
+      console.error("[Registration Error]:", e);
+      if (e.message?.includes('users_phone_key') || e.code === '23505') {
+        res.status(400).json({ error: "Phone number already registered" });
+      } else {
+        res.status(500).json({ error: "Registration failed", message: e.message });
+      }
     }
   });
 
