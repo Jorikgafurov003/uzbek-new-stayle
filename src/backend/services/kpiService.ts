@@ -1,68 +1,66 @@
-import Database from "better-sqlite3";
+import { PgDatabase } from "../models/pg-wrapper.js";
 
 export class KPIService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: PgDatabase) {}
 
   async calculateKPIs() {
     try {
       // Agents KPI
-      const agents = this.db.prepare("SELECT * FROM users WHERE role = 'agent'").all();
+      const agents = await this.db.prepare("SELECT * FROM users WHERE role = 'agent'").all();
       for (const agent of agents as any) {
-        const stats = this.db.prepare(`
-          SELECT COUNT(id) as total_orders, SUM(totalPrice) as total_sales
+        const stats = await this.db.prepare(`
+          SELECT COUNT(id) as total_orders, SUM("totalPrice") as total_sales
           FROM orders
-          WHERE agentId = ? AND createdAt >= date('now', '-30 days')
+          WHERE "agentId" = $1 AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
         `).get(agent.id) as any;
 
-        const clientGrowth = this.db.prepare(`
+        const clientGrowth = await this.db.prepare(`
           SELECT COUNT(id) as count
           FROM users
-          WHERE agentId = ? AND role = 'client' AND lastSeen >= date('now', '-30 days')
+          WHERE agent_id = $1 AND role = 'client' AND "lastSeen" >= CURRENT_DATE - INTERVAL '30 days'
         `).get(agent.id) as any;
 
         const score = (stats.total_sales / 1000000) * 10 + (stats.total_orders * 2) + (clientGrowth.count * 5);
         const level = this.calculateLevel(score);
 
-        this.db.prepare(`
-          INSERT INTO employee_kpi (user_id, role, score, level, updated_at)
-          VALUES (?, 'agent', ?, ?, CURRENT_TIMESTAMP)
+        await this.db.prepare(`
+          INSERT INTO employee_kpi (user_id, score, month)
+          VALUES ($1, $2, TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
           ON CONFLICT(user_id) DO UPDATE SET 
-            score = excluded.score,
-            level = excluded.level,
-            updated_at = CURRENT_TIMESTAMP
-        `).run(agent.id, score, level);
+            score = EXCLUDED.score,
+            month = EXCLUDED.month
+        `).run(agent.id, score);
       }
 
       // Couriers KPI
-      const couriers = this.db.prepare("SELECT * FROM users WHERE role = 'courier'").all();
+      const couriers = await this.db.prepare("SELECT * FROM users WHERE role = 'courier'").all();
       for (const courier of couriers as any) {
-        const stats = this.db.prepare(`
+        const stats = await this.db.prepare(`
           SELECT COUNT(id) as total_deliveries
           FROM orders
-          WHERE courierId = ? AND orderStatus = 'delivered' AND createdAt >= date('now', '-30 days')
+          WHERE "courierId" = $1 AND "orderStatus" = 'delivered' AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
         `).get(courier.id) as any;
 
-        const failed = this.db.prepare(`
+        const failed = await this.db.prepare(`
           SELECT COUNT(id) as count
           FROM orders
-          WHERE courierId = ? AND orderStatus = 'cancelled' AND createdAt >= date('now', '-30 days')
+          WHERE "courierId" = $1 AND "orderStatus" = 'cancelled' AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
         `).get(courier.id) as any;
 
         const score = (stats.total_deliveries * 5) - (failed.count * 10);
         const level = this.calculateLevel(score);
 
-        this.db.prepare(`
-          INSERT INTO employee_kpi (user_id, role, score, level, updated_at)
-          VALUES (?, 'courier', ?, ?, CURRENT_TIMESTAMP)
+        await this.db.prepare(`
+          INSERT INTO employee_kpi (user_id, score, month)
+          VALUES ($1, $2, TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
           ON CONFLICT(user_id) DO UPDATE SET 
-            score = excluded.score,
-            level = excluded.level,
-            updated_at = CURRENT_TIMESTAMP
-        `).run(courier.id, score, level);
+            score = EXCLUDED.score,
+            month = EXCLUDED.month
+        `).run(courier.id, score);
       }
 
       // Ratings update
-      this.updateRatings();
+      await this.updateRatings();
 
       return true;
     } catch (error) {
@@ -78,25 +76,20 @@ export class KPIService {
     return 'bronze';
   }
 
-  private updateRatings() {
-    const users = this.db.prepare("SELECT id, role FROM users WHERE role IN ('agent', 'courier', 'client')").all();
+  private async updateRatings() {
+    const users = await this.db.prepare("SELECT id, role FROM users WHERE role IN ('agent', 'courier', 'client')").all();
     for (const user of users as any) {
-      const orders = this.db.prepare(`
+      const orders = await this.db.prepare(`
         SELECT COUNT(id) as count
         FROM orders
-        WHERE (clientId = ? OR agentId = ? OR courierId = ?) AND orderStatus = 'delivered'
+        WHERE ("clientId" = $1 OR "agentId" = $2 OR "courierId" = $3) AND "orderStatus" = 'delivered'
       `).get(user.id, user.id, user.id) as any;
 
       const rating = Math.min(5, 3 + (orders.count / 10));
 
-      this.db.prepare(`
-        INSERT INTO ratings (user_id, role, rating, total_orders, updated_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(user_id) DO UPDATE SET 
-          rating = excluded.rating,
-          total_orders = excluded.total_orders,
-          updated_at = CURRENT_TIMESTAMP
-      `).run(user.id, user.role, rating, orders.count);
+      await this.db.prepare(`
+        UPDATE users SET rating_count = $1, rating = $2 WHERE id = $3
+      `).run(orders.count, rating, user.id);
     }
   }
 }

@@ -152,7 +152,10 @@ export const CourierApp: React.FC = () => {
   return (
     <div className={`min-h-screen pb-24 font-sans transition-all duration-500 ${theme === 'futuristic' ? 'bg-[#050505] text-white' : 'bg-[#f2f4f7] text-uzum-text'}`}>
       <header className={`p-4 shadow-sm flex justify-between items-center sticky top-0 z-30 border-b transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-[#e2e5eb]'}`}>
-        <h1 className={`text-2xl font-black tracking-tighter transition-all ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500' : 'text-uzum-primary'}`}>UZBECHKA</h1>
+        <h1 className={`text-2xl font-black tracking-tighter transition-all flex items-center gap-2 ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500' : 'text-uzum-primary'}`}>
+          <img src="/logo.png" alt="Logo" className="h-8 w-8 object-cover rounded-md shadow-sm" />
+          UZBECHKA <span className="text-sm font-bold text-stone-500 tracking-normal hidden sm:inline">DENAN bekary</span>
+        </h1>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-2 px-2 py-1 rounded-full border ${isOnline ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
             <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>

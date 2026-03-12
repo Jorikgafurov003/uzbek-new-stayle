@@ -251,7 +251,10 @@ export const ClientApp: React.FC = () => {
       <header className={`p-4 sticky top-0 z-30 transition-all ${theme === 'futuristic' ? 'glass-morphism border-b border-white/5 shadow-2xl' : 'bg-white border-b border-uzum-border shadow-sm'}`}>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
-            <h1 className={`text-2xl font-black tracking-tighter transition-all ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500 drop-shadow-neon' : 'text-uzum-primary'}`}>UZBECHKA</h1>
+            <h1 className={`text-2xl font-black tracking-tighter transition-all flex items-center gap-2 ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500 drop-shadow-neon' : 'text-uzum-primary'}`}>
+              <img src="/logo.png" alt="Logo" className="h-8 object-contain" />
+              UZBECHKA <span className="text-sm font-bold text-stone-500 tracking-normal hidden sm:inline">DENAN bekary</span>
+            </h1>
             <div className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-uzum-primary/5 text-uzum-primary border border-uzum-primary/10'}`}>MARKET</div>
           </div>
           <div className="flex items-center gap-3">

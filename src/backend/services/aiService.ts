@@ -1,38 +1,38 @@
 import { GoogleGenAI } from "@google/genai";
-import Database from "better-sqlite3";
+import { PgDatabase } from "../models/pg-wrapper.js";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export class AIService {
-  constructor(private db: Database.Database) { }
+  constructor(private db: PgDatabase) { }
 
   async generateBusinessInsights() {
     if (!ai) return null;
     try {
-      const sales = this.db.prepare(`
+      const sales = await this.db.prepare(`
         SELECT p.name, SUM(oi.quantity) as total_qty, SUM(oi.quantity * oi.price) as revenue
         FROM order_items oi
         JOIN products p ON oi.productId = p.id
         JOIN orders o ON oi.orderId = o.id
-        WHERE o.createdAt >= date('now', '-7 days')
+        WHERE o."createdAt" >= CURRENT_DATE - INTERVAL '7 days'
         GROUP BY p.id
         ORDER BY revenue DESC
       `).all();
 
-      const agentPerformance = this.db.prepare(`
-        SELECT u.name, COUNT(o.id) as order_count, SUM(o.totalPrice) as total_sales
+      const agentPerformance = await this.db.prepare(`
+        SELECT u.name, COUNT(o.id) as order_count, SUM(o."totalPrice") as total_sales
         FROM orders o
-        JOIN users u ON o.agentId = u.id
-        WHERE o.createdAt >= date('now', '-7 days')
+        JOIN users u ON o."agentId" = u.id
+        WHERE o."createdAt" >= CURRENT_DATE - INTERVAL '7 days'
         GROUP BY u.id
       `).all();
 
-      const courierEfficiency = this.db.prepare(`
+      const courierEfficiency = await this.db.prepare(`
         SELECT u.name, COUNT(o.id) as delivery_count
         FROM orders o
-        JOIN users u ON o.courierId = u.id
-        WHERE o.orderStatus = 'delivered' AND o.createdAt >= date('now', '-7 days')
+        JOIN users u ON o."courierId" = u.id
+        WHERE o."orderStatus" = 'delivered' AND o."createdAt" >= CURRENT_DATE - INTERVAL '7 days'
         GROUP BY u.id
       `).all();
 
@@ -63,11 +63,13 @@ export class AIService {
 
       const data = JSON.parse(response.text || "{}");
 
-      const insertInsight = this.db.prepare("INSERT INTO business_insights (summary, recommendation, risk_level) VALUES (?, ?, ?)");
-
-      data.recommendations.forEach((rec: any) => {
-        insertInsight.run(data.summary, rec.text, rec.riskLevel);
-      });
+      for (const rec of data.recommendations) {
+          try {
+              await this.db.prepare("INSERT INTO business_insights (title, content, type) VALUES (?, ?, ?)").run(data.summary, rec.text, rec.riskLevel);
+          } catch(err) {
+              console.error(err);
+          }
+      }
 
       return data;
     } catch (error) {
@@ -79,12 +81,12 @@ export class AIService {
   async generateProfitForecast() {
     if (!ai) return [];
     try {
-      const history = this.db.prepare(`
-        SELECT date(createdAt) as date, SUM(totalPrice) as revenue, COUNT(id) as orders
+      const history = await this.db.prepare(`
+        SELECT DATE("createdAt") as date, SUM("totalPrice") as revenue, COUNT(id) as orders
         FROM orders
-        WHERE createdAt >= date('now', '-90 days')
-        GROUP BY date
-        ORDER BY date ASC
+        WHERE "createdAt" >= CURRENT_DATE - INTERVAL '90 days'
+        GROUP BY DATE("createdAt")
+        ORDER BY DATE("createdAt") ASC
       `).all();
 
       const prompt = `
@@ -111,13 +113,15 @@ export class AIService {
 
       const forecast = JSON.parse(response.text || "[]");
 
-      const deleteOld = this.db.prepare("DELETE FROM profit_forecast");
-      deleteOld.run();
+      await this.db.prepare("DELETE FROM profit_forecast").run();
 
-      const insertForecast = this.db.prepare("INSERT INTO profit_forecast (date, expected_orders, expected_revenue, confidence) VALUES (?, ?, ?, ?)");
-      forecast.forEach((f: any) => {
-        insertForecast.run(f.date, f.expectedOrders, f.expectedRevenue, f.confidence);
-      });
+      for (const f of forecast) {
+          try {
+              await this.db.prepare("INSERT INTO profit_forecast (date, amount) VALUES (?, ?)").run(f.date, f.expectedRevenue);
+          } catch(err) {
+              console.error(err);
+          }
+      }
 
       return forecast;
     } catch (error) {
@@ -129,11 +133,11 @@ export class AIService {
   async analyzeSecurity() {
     if (!ai) return [];
     try {
-      const recentOrders = this.db.prepare(`
+      const recentOrders = await this.db.prepare(`
         SELECT o.*, u.phone, u.role
         FROM orders o
-        JOIN users u ON o.clientId = u.id
-        WHERE o.createdAt >= datetime('now', '-24 hours')
+        JOIN users u ON o."clientId" = u.id
+        WHERE o."createdAt" >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
       `).all();
 
       const prompt = `
@@ -160,10 +164,13 @@ export class AIService {
 
       const alerts = JSON.parse(response.text || "[]");
 
-      const insertAlert = this.db.prepare("INSERT INTO security_alerts (user_id, type, risk_score) VALUES (?, ?, ?)");
-      alerts.forEach((a: any) => {
-        insertAlert.run(a.userId, a.type, a.riskScore);
-      });
+      for (const a of alerts) {
+          try {
+              await this.db.prepare("INSERT INTO security_alerts (user_id, type, message, severity) VALUES (?, ?, ?, ?)").run(a.userId, a.type, a.reason, a.riskLevel > 50 ? 'high' : 'medium');
+          } catch(err) {
+              console.error(err);
+          }
+      }
 
       return alerts;
     } catch (error) {

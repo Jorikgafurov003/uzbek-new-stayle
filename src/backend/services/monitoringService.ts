@@ -1,14 +1,14 @@
-import Database from "better-sqlite3";
+import { PgDatabase } from "../models/pg-wrapper.js";
 import { Server } from "socket.io";
 
 export class MonitoringService {
-  constructor(private db: Database.Database, private io: Server) {}
+  constructor(private db: PgDatabase, private io: Server) {}
 
   async checkHealth() {
     try {
-      const logs = this.db.prepare(`
+      const logs = await this.db.prepare(`
         SELECT * FROM system_errors 
-        WHERE fixed = 0 AND createdAt >= datetime('now', '-1 hour')
+        WHERE fixed = 0 AND "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
       `).all();
 
       const memory = process.memoryUsage();
@@ -21,14 +21,14 @@ export class MonitoringService {
       }
 
       if (logs.length > 10) {
-        this.logHealthIssue('API', `High error rate: ${logs.length} errors in last hour`, 'medium');
+        await this.logHealthIssue('API', `High error rate: ${logs.length} errors in last hour`, 'medium');
       }
 
       // Check DB connectivity
       try {
-        this.db.prepare("SELECT 1").get();
+        await this.db.prepare("SELECT 1").get();
       } catch (e) {
-        this.logHealthIssue('Database', 'Database connection issue', 'high');
+        await this.logHealthIssue('Database', 'Database connection issue', 'high');
       }
 
       return true;
@@ -38,8 +38,8 @@ export class MonitoringService {
     }
   }
 
-  private logHealthIssue(service: string, issue: string, severity: 'low' | 'medium' | 'high') {
-    this.db.prepare(`
+  private async logHealthIssue(service: string, issue: string, severity: 'low' | 'medium' | 'high') {
+    await this.db.prepare(`
       INSERT INTO system_health_logs (service, issue, severity, auto_fix_applied)
       VALUES (?, ?, ?, 0)
     `).run(service, issue, severity);
@@ -48,7 +48,7 @@ export class MonitoringService {
   }
 
   async applyAutoFix(logId: number) {
-    const log = this.db.prepare("SELECT * FROM system_health_logs WHERE id = ?").get(logId) as any;
+    const log = await this.db.prepare("SELECT * FROM system_health_logs WHERE id = ?").get(logId) as any;
     if (!log) return false;
 
     let fixed = false;
@@ -61,7 +61,7 @@ export class MonitoringService {
     }
 
     if (fixed) {
-      this.db.prepare("UPDATE system_health_logs SET auto_fix_applied = 1 WHERE id = ?").run(logId);
+      await this.db.prepare("UPDATE system_health_logs SET auto_fix_applied = 1 WHERE id = ?").run(logId);
     }
     return fixed;
   }

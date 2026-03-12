@@ -309,7 +309,10 @@ export const AdminApp: React.FC = () => {
       {/* Top Header */}
       <header className={`p-4 flex justify-between items-center sticky top-0 z-30 border-b transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-[#e2e5eb]'}`}>
         <div>
-          <h1 className={`text-2xl font-black tracking-tighter transition-all ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500' : 'text-uzum-primary'}`}>UZBECHKA</h1>
+          <h1 className={`text-2xl font-black tracking-tighter transition-all flex items-center gap-2 ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500' : 'text-uzum-primary'}`}>
+            <img src="/logo.png" alt="Logo" className="h-8 object-contain" />
+            UZBECHKA <span className="text-sm font-bold text-stone-500 tracking-normal hidden sm:inline">DENAN bekary</span>
+          </h1>
           <p className="text-[10px] font-black text-uzum-muted uppercase tracking-widest leading-none mt-1">{t('adminPanel')}</p>
         </div>
 

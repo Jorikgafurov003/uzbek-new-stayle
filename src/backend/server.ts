@@ -10,8 +10,6 @@ import cron from "node-cron";
 import compression from "compression";
 import fs from "fs";
 import { Debt } from "../types/index.js";
-
-
 import db from "./models/db.js";
 import orderRoutes from "./routes/orders.js";
 import userRoutes from "./routes/users.js";
@@ -23,6 +21,7 @@ import { AIService } from "./services/aiService.js";
 import { KPIService } from "./services/kpiService.js";
 import { MonitoringService } from "./services/monitoringService.js";
 import { DeployService } from "./services/deployService.js";
+import { FirebaseService } from "./services/firebaseService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +37,7 @@ async function startServer() {
   const kpiService = new KPIService(db);
   const monitoringService = new MonitoringService(db, io);
   const deployService = new DeployService();
+  const firebaseService = FirebaseService.getInstance();
 
   // Schedulers
   cron.schedule('0 */6 * * *', () => aiService.generateBusinessInsights());
@@ -73,63 +73,63 @@ async function startServer() {
   app.use("/api/ratings", ratingRoutes);
 
   // Categories
-  app.get("/api/categories", (req, res) => res.json(db.prepare("SELECT * FROM categories").all()));
-  app.post("/api/categories", (req, res) => {
+  app.get("/api/categories", async (req, res) => res.json(await db.prepare("SELECT * FROM categories").all()));
+  app.post("/api/categories", async (req, res) => {
     const { name } = req.body;
-    const result = db.prepare("INSERT INTO categories (name) VALUES (?)").run(name);
+    const result = await db.prepare("INSERT INTO categories (name) VALUES (?) RETURNING id").run(name);
     res.json({ id: result.lastInsertRowid, name });
   });
 
   // Banners
-  app.get("/api/banners", (req, res) => {
-    const banners = db.prepare("SELECT * FROM banners ORDER BY id DESC").all();
+  app.get("/api/banners", async (req, res) => {
+    const banners = await db.prepare("SELECT * FROM banners ORDER BY id DESC").all();
     res.json(banners.map((b: any) => ({
       ...b,
       images: b.images ? JSON.parse(b.images) : []
     })));
   });
-  app.post("/api/banners", (req, res) => {
+  app.post("/api/banners", async (req, res) => {
     const { title, imageUrl, images, videoUrl, link, isActive } = req.body;
     const imagesJson = images ? JSON.stringify(images) : null;
-    const result = db.prepare("INSERT INTO banners (title, imageUrl, images, videoUrl, link, isActive) VALUES (?, ?, ?, ?, ?, ?)").run(
+    const result = await db.prepare("INSERT INTO banners (title, imageUrl, images, videoUrl, link, isActive) VALUES (?, ?, ?, ?, ?, ?) RETURNING id").run(
       title, imageUrl, imagesJson, videoUrl || null, link || null, isActive ?? 1
     );
     res.json({ id: result.lastInsertRowid });
   });
-  app.put("/api/banners/:id", (req, res) => {
+  app.put("/api/banners/:id", async (req, res) => {
     const { title, imageUrl, images, videoUrl, link, isActive } = req.body;
     const imagesJson = images ? JSON.stringify(images) : null;
-    db.prepare("UPDATE banners SET title = ?, imageUrl = ?, images = ?, videoUrl = ?, link = ?, isActive = ? WHERE id = ?").run(
+    await db.prepare("UPDATE banners SET title = ?, imageUrl = ?, images = ?, videoUrl = ?, link = ?, isActive = ? WHERE id = ?").run(
       title, imageUrl, imagesJson, videoUrl || null, link || null, isActive, req.params.id
     );
     res.json({ success: true });
   });
-  app.delete("/api/banners/:id", (req, res) => {
-    db.prepare("DELETE FROM banners WHERE id = ?").run(req.params.id);
+  app.delete("/api/banners/:id", async (req, res) => {
+    await db.prepare("DELETE FROM banners WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
 
   // Settings
-  app.get("/api/settings", (req, res) => {
-    const settings = db.prepare("SELECT * FROM settings").all();
+  app.get("/api/settings", async (req, res) => {
+    const settings = await db.prepare("SELECT * FROM settings").all();
     const result: any = {};
     settings.forEach((s: any) => result[s.key] = s.value);
     res.json(result);
   });
-  app.post("/api/settings", (req, res) => {
+  app.post("/api/settings", async (req, res) => {
     const updates = req.body;
     if (typeof updates === 'object' && !updates.key) {
       // Bulk update
-      const stmt = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
-      db.transaction(() => {
+      await db.transaction(async () => {
         for (const [key, value] of Object.entries(updates)) {
-          stmt.run(key, String(value));
+            // PostgreSQL specific UPSERT syntax
+            await db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value").run(key, String(value));
         }
-      })();
+      });
     } else {
       // Single update
       const { key, value } = req.body;
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, String(value));
+      await db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value").run(key, String(value));
     }
     res.json({ success: true });
   });
@@ -151,7 +151,7 @@ async function startServer() {
 
 
   // Shops (Clients registered by Agents)
-  app.get("/api/shops", (req, res) => {
+  app.get("/api/shops", async (req, res) => {
     try {
       const { archived } = req.query;
       let query = `SELECT s.*, u.name as clientName, a.name as agentName 
@@ -165,14 +165,14 @@ async function startServer() {
         query += " WHERE s.isArchived = 0";
       }
 
-      const shops = db.prepare(query).all();
+      const shops = await db.prepare(query).all();
       res.json(shops);
-    } catch (e) {
+    } catch (e: any) {
       res.json([]);
     }
   });
 
-  app.post("/api/shops", (req, res) => {
+  app.post("/api/shops", async (req, res) => {
     const { clientId, name, address, latitude, longitude, agentId } = req.body;
     const lat = latitude || req.body.lat;
     const lng = longitude || req.body.lng;
@@ -184,25 +184,25 @@ async function startServer() {
     const finalAddress = address || (lat && lng ? `Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Address not specified');
 
     try {
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO shops (name, address, latitude, longitude, clientId, agentId, isArchived) 
-        VALUES (?, ?, ?, ?, ?, ?, 0)
+        VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING id
       `).run(name, finalAddress, lat || null, lng || null, clientId, agentId || null);
 
-      const shop = db.prepare("SELECT * FROM shops WHERE id = ?").get(result.lastInsertRowid);
+      const shop = await db.prepare("SELECT * FROM shops WHERE id = ?").get(result.lastInsertRowid);
       res.json(shop);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.put("/api/shops/:id", (req, res) => {
+  app.put("/api/shops/:id", async (req, res) => {
     const { name, address, latitude, longitude, clientId, agentId } = req.body;
     const lat = latitude || req.body.lat;
     const lng = longitude || req.body.lng;
 
     try {
-      db.prepare(`
+      await db.prepare(`
         UPDATE shops 
         SET name = ?, address = ?, latitude = ?, longitude = ?, clientId = ?, agentId = ?
         WHERE id = ?
@@ -213,94 +213,93 @@ async function startServer() {
     }
   });
 
-  app.put("/api/shops/:id/archive", (req, res) => {
-
+  app.put("/api/shops/:id/archive", async (req, res) => {
     const { isArchived } = req.body;
     try {
-      db.prepare("UPDATE shops SET isArchived = ? WHERE id = ?").run(isArchived ? 1 : 0, req.params.id);
+      await db.prepare("UPDATE shops SET isArchived = ? WHERE id = ?").run(isArchived ? 1 : 0, req.params.id);
       res.json({ success: true });
-    } catch (e) {
+    } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.delete("/api/shops/:id", (req, res) => {
+  app.delete("/api/shops/:id", async (req, res) => {
     try {
-      db.prepare("DELETE FROM shops WHERE id = ?").run(req.params.id);
+      await db.prepare("DELETE FROM shops WHERE id = ?").run(req.params.id);
       res.json({ success: true });
-    } catch (e) {
+    } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
 
   // Activity Logs
-  app.get("/api/activity-logs", (req, res) => {
+  app.get("/api/activity-logs", async (req, res) => {
     try {
-      const logs = db.prepare("SELECT * FROM activity_logs ORDER BY createdAt DESC LIMIT 100").all();
+      const logs = await db.prepare("SELECT * FROM activity_logs ORDER BY createdAt DESC LIMIT 100").all();
       res.json(logs);
-    } catch (e) {
+    } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post("/api/activity-logs", (req, res) => {
+  app.post("/api/activity-logs", async (req, res) => {
     const { userId, userName, userRole, action, details } = req.body;
     try {
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO activity_logs (userId, userName, userRole, action, details) 
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?) RETURNING id
       `).run(userId, userName, userRole, action, details || null);
 
-      const newLog = db.prepare("SELECT * FROM activity_logs WHERE id = ?").get(result.lastInsertRowid);
+      const newLog = await db.prepare("SELECT * FROM activity_logs WHERE id = ?").get(result.lastInsertRowid);
 
       // Emit via websocket to notify admin instantly
       io.emit('activity_logged', newLog);
 
       res.json(newLog);
-    } catch (e) {
+    } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
   // Debts
-  app.get("/api/debts", (req, res) => {
+  app.get("/api/debts", async (req, res) => {
     const query = `
       SELECT d.*, 
-             u.name as clientName, 
-             u.phone as clientPhone,
-             (SELECT s.name FROM shops s WHERE s.clientId = d.clientId LIMIT 1) as shopName
+             u.name as "clientName", 
+             u.phone as "clientPhone",
+             (SELECT s.name FROM shops s WHERE s.clientId = d.clientId LIMIT 1) as "shopName"
       FROM debts d 
       JOIN users u ON d.clientId = u.id 
       ORDER BY d.createdAt DESC
     `;
-    res.json(db.prepare(query).all());
+    res.json(await db.prepare(query).all());
   });
 
-  app.post("/api/debts", (req, res) => {
+  app.post("/api/debts", async (req, res) => {
     const { clientId, amount, dueDate } = req.body;
     try {
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO debts (clientId, amount, dueDate, status) 
-        VALUES (?, ?, ?, 'pending')
+        VALUES (?, ?, ?, 'pending') RETURNING id
       `).run(clientId, amount, dueDate || null);
 
-      const newDebt = db.prepare("SELECT d.*, u.name as clientName, u.phone as clientPhone FROM debts d JOIN users u ON d.clientId = u.id WHERE d.id = ?").get(result.lastInsertRowid);
+      const newDebt = await db.prepare("SELECT d.*, u.name as clientName, u.phone as clientPhone FROM debts d JOIN users u ON d.clientId = u.id WHERE d.id = ?").get(result.lastInsertRowid);
       res.json(newDebt);
-    } catch (e) {
+    } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.patch("/api/debts/:id/pay", (req, res) => {
+  app.patch("/api/debts/:id/pay", async (req, res) => {
     const { payerName } = req.body;
-    db.prepare("UPDATE debts SET status = 'paid', paidAt = CURRENT_TIMESTAMP, payerName = ? WHERE id = ?").run(payerName || null, req.params.id);
+    await db.prepare("UPDATE debts SET status = 'paid', paidAt = CURRENT_TIMESTAMP, payerName = ? WHERE id = ?").run(payerName || null, req.params.id);
     res.json({ success: true });
   });
 
-  app.patch("/api/debts/:id/pay-partial", (req, res) => {
+  app.patch("/api/debts/:id/pay-partial", async (req, res) => {
     const { amountPaid, payerName } = req.body;
     try {
-      const debt = db.prepare("SELECT * FROM debts WHERE id = ?").get(req.params.id) as Debt;
+      const debt = await db.prepare("SELECT * FROM debts WHERE id = ?").get(req.params.id) as Debt;
       if (!debt || debt.status === 'paid') {
         return res.status(400).json({ error: "Debt not found or already paid" });
       }
@@ -308,12 +307,12 @@ async function startServer() {
       const newAmount = Math.max(0, debt.amount - amountPaid);
 
       if (newAmount === 0) {
-        db.prepare("UPDATE debts SET status = 'paid', amount = 0, paidAt = CURRENT_TIMESTAMP, payerName = ? WHERE id = ?").run(payerName || null, req.params.id);
+        await db.prepare("UPDATE debts SET status = 'paid', amount = 0, paidAt = CURRENT_TIMESTAMP, payerName = ? WHERE id = ?").run(payerName || null, req.params.id);
       } else {
         const currentReason = debt.increaseReason ? debt.increaseReason + ` | ` : '';
         const formattedDate = new Date().toLocaleDateString();
         const partialNote = `Частично оплачено ${amountPaid} (${formattedDate}${payerName ? ` от ${payerName}` : ''})`;
-        db.prepare("UPDATE debts SET amount = ?, increaseReason = ? WHERE id = ?").run(newAmount, currentReason + partialNote, req.params.id);
+        await db.prepare("UPDATE debts SET amount = ?, increaseReason = ? WHERE id = ?").run(newAmount, currentReason + partialNote, req.params.id);
       }
       res.json({ success: true });
     } catch (e: any) {
@@ -321,16 +320,16 @@ async function startServer() {
     }
   });
 
-  app.patch("/api/debts/:id/increase", (req, res) => {
+  app.patch("/api/debts/:id/increase", async (req, res) => {
     const { amount, reason } = req.body;
-    db.prepare("UPDATE debts SET amount = amount + ?, increasedAmount = increasedAmount + ?, increaseReason = ? WHERE id = ?").run(amount, amount, reason, req.params.id);
+    await db.prepare("UPDATE debts SET amount = amount + ?, increasedAmount = increasedAmount + ?, increaseReason = ? WHERE id = ?").run(amount, amount, reason, req.params.id);
     res.json({ success: true });
   });
 
-  app.put("/api/debts/:id", (req, res) => {
+  app.put("/api/debts/:id", async (req, res) => {
     const { amount, dueDate, status, payerName } = req.body;
     try {
-      db.prepare("UPDATE debts SET amount = ?, dueDate = ?, status = ?, payerName = ? WHERE id = ?").run(
+      await db.prepare("UPDATE debts SET amount = ?, dueDate = ?, status = ?, payerName = ? WHERE id = ?").run(
         amount, dueDate || null, status, payerName || null, req.params.id
       );
       res.json({ success: true });
@@ -339,9 +338,9 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/debts/:id", (req, res) => {
+  app.delete("/api/debts/:id", async (req, res) => {
     try {
-      db.prepare("DELETE FROM debts WHERE id = ?").run(req.params.id);
+      await db.prepare("DELETE FROM debts WHERE id = ?").run(req.params.id);
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -350,43 +349,43 @@ async function startServer() {
 
 
   // Auth
-  app.post("/api/auth/login", (req, res) => {
+  app.post("/api/auth/login", async (req, res) => {
     const { phone, password } = req.body;
     if (phone === '+998936584455' && password === '1210999') {
-      let admin = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+      let admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
       if (!admin) {
-        db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Super Admin', phone, password, 'admin');
-        admin = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+        await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Super Admin', phone, password, 'admin');
+        admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
       }
       return res.json(admin);
     }
-    const user = db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
+    const user = await db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
     if (user) res.json(user);
     else res.status(401).json({ error: "Invalid credentials" });
   });
 
-  app.post("/api/auth/register", (req, res) => {
+  app.post("/api/auth/register", async (req, res) => {
     const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
     try {
       const finalRole = (phone === '+998936584455') ? 'admin' : (role || 'client');
-      const result = db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+      const result = await db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
         name, phone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
       );
-      const user = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
+      const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
       res.json(user);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Register error:", e);
       res.status(400).json({ error: "Phone number already registered" });
     }
   });
 
   // Stats
-  app.get("/api/stats", (req, res) => {
-    const totalRevenue = db.prepare("SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = 'paid'").get().total || 0;
-    const totalOrders = db.prepare("SELECT COUNT(*) as count FROM orders").get().count || 0;
-    const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get().count || 0;
-    const totalProducts = db.prepare("SELECT COUNT(*) as count FROM products").get().count || 0;
-    const salesByCategory = db.prepare(`
+  app.get("/api/stats", async (req, res) => {
+    let totalRevenue = (await db.prepare("SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = 'paid'").get())?.total || 0;
+    let totalOrders = (await db.prepare("SELECT COUNT(*) as count FROM orders").get())?.count || 0;
+    let totalUsers = (await db.prepare("SELECT COUNT(*) as count FROM users").get())?.count || 0;
+    let totalProducts = (await db.prepare("SELECT COUNT(*) as count FROM products").get())?.count || 0;
+    let salesByCategory = await db.prepare(`
       SELECT c.name, SUM(oi.price * oi.quantity) as value
       FROM order_items oi
       JOIN products p ON oi.productId = p.id
@@ -401,8 +400,10 @@ async function startServer() {
   // Telegram
   app.post("/api/telegram/send", async (req, res) => {
     const { message } = req.body;
-    const botToken = db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get()?.value;
-    const chatId = db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get()?.value;
+    const botTokenObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get();
+    const chatIdObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get();
+    const botToken = botTokenObj?.value;
+    const chatId = chatIdObj?.value;
     if (!botToken || !chatId) return res.status(400).json({ error: "Telegram settings missing" });
     try {
       const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -411,38 +412,38 @@ async function startServer() {
         body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
       });
       res.json(await response.json());
-    } catch (e) {
+    } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  // Upload
+  // Upload (Temporary, will be moved to firebase)
   app.post("/api/upload", upload.single('photo'), (req, res) => {
     const type = req.body.type || 'products';
     res.json({ url: `/uploads/${type}/${req.file?.filename}` });
   });
 
-  app.post("/api/courier/upload-proof", upload.single('photo'), (req, res) => {
+  app.post("/api/courier/upload-proof", upload.single('photo'), async (req, res) => {
     const { orderId } = req.body;
     const imageUrl = `/uploads/proofs/${req.file?.filename}`;
-    db.prepare("UPDATE orders SET deliveryPhoto = ?, orderStatus = 'delivered' WHERE id = ?").run(imageUrl, orderId);
+    await db.prepare("UPDATE orders SET deliveryPhoto = ?, orderStatus = 'delivered' WHERE id = ?").run(imageUrl, orderId);
     res.json({ success: true, imageUrl });
   });
 
   // Socket.io
   io.on("connection", (socket) => {
-    socket.on("update_location", (data) => {
+    socket.on("update_location", async (data) => {
       const { userId, lat, lng, role, speed } = data;
-      db.prepare("UPDATE users SET lat = ?, lng = ?, lastSeen = CURRENT_TIMESTAMP WHERE id = ?").run(lat, lng, userId);
-      db.prepare("INSERT INTO location_history (userId, lat, lng) VALUES (?, ?, ?)").run(userId, lat, lng);
+      await db.prepare("UPDATE users SET lat = ?, lng = ?, lastSeen = CURRENT_TIMESTAMP WHERE id = ?").run(lat, lng, userId);
+      await db.prepare("INSERT INTO location_history (userId, lat, lng) VALUES (?, ?, ?)").run(userId, lat, lng);
       if (role === 'courier') {
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO courier_locations (courier_id, latitude, longitude, speed, updated_at)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-          ON CONFLICT(courier_id) DO UPDATE SET
-            latitude = excluded.latitude,
-            longitude = excluded.longitude,
-            speed = excluded.speed,
+          ON CONFLICT (courier_id) DO UPDATE SET
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            speed = EXCLUDED.speed,
             updated_at = CURRENT_TIMESTAMP
         `).run(userId, lat, lng, speed || 0);
       }

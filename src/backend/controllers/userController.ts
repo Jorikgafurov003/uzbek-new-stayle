@@ -1,15 +1,13 @@
 import db from '../models/db.js';
 
-export const getUsers = (req, res) => {
-  const users = db.prepare("SELECT * FROM users").all();
+export const getUsers = async (req: any, res: any) => {
+  const users = await db.prepare("SELECT * FROM users").all();
   res.json(users);
 };
 
-export const updateUser = (req, res) => {
+export const updateUser = async (req: any, res: any) => {
   const data = { ...req.body };
 
-  // Если пароль пустой или состоит только из пробелов, удаляем его из объекта обновлений,
-  // чтобы старый пароль в БД не перезаписался пустой строкой.
   if (data.password !== undefined && (!data.password || data.password.trim() === "")) {
     delete data.password;
   }
@@ -19,13 +17,15 @@ export const updateUser = (req, res) => {
     return res.json({ success: true, message: "No fields to update" });
   }
 
-  const updates = keys.map(k => `${k} = ?`).join(", ");
-  db.prepare(`UPDATE users SET ${updates} WHERE id = ?`).run(...Object.values(data), req.params.id);
+  const setString = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+  const values = Object.values(data);
+  
+  await db.prepare(`UPDATE users SET ${setString.replace(/\$\d+/g, '?')} WHERE id = ?`).run(...values, req.params.id);
 
   res.json({ success: true });
 };
 
-export const deleteUser = (req, res) => {
-  db.prepare("DELETE FROM users WHERE id = ?").run(req.params.id);
+export const deleteUser = async (req: any, res: any) => {
+  await db.prepare("DELETE FROM users WHERE id = ?").run(req.params.id);
   res.json({ success: true });
 };

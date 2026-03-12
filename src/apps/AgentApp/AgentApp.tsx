@@ -9,9 +9,22 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog';
 
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, Popup } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { BUKHARA_CENTER } from '../../context/DataContext';
+
+// Fix Leaflet default icon issue
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerIconRetina from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIconRetina,
+  shadowUrl: markerShadow,
+});
 
 const LocationPicker = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number, address?: string) => void }) => {
   const { apiFetch } = useData();
@@ -114,7 +127,8 @@ export const AgentApp: React.FC = () => {
       orderStatus: selectedCourierId ? 'confirmed' : 'confirmed', // Keep as confirmed, courier will see it
       location: shop ? `${shop.name} (${shop.address})` : 'Store Pickup / Agent Order',
       paymentType: paymentMethod,
-      paymentStatus: paymentMethod === 'debt' ? 'pending' : 'paid'
+      paymentStatus: paymentMethod === 'debt' ? 'pending' : 'paid',
+      dueDate: paymentMethod === 'debt' ? (dueDate || new Date(Date.now() + 86400000).toISOString()) : undefined
     });
 
     speak(`Заказ для ${selectedClient.name} создан${selectedCourierId ? ' и назначен курьеру' : ''}`);
@@ -184,7 +198,10 @@ export const AgentApp: React.FC = () => {
   return (
     <div className={`min-h-screen pb-24 font-sans transition-all duration-500 ${theme === 'futuristic' ? 'bg-[#050505] text-white' : 'bg-[#f2f4f7] text-uzum-text'}`}>
       <header className={`p-4 shadow-sm flex justify-between items-center sticky top-0 z-30 border-b transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-[#e2e5eb]'}`}>
-        <h1 className={`text-2xl font-black tracking-tighter transition-all ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500' : 'text-uzum-primary'}`}>UZBECHKA</h1>
+        <h1 className={`text-2xl font-black tracking-tighter transition-all flex items-center gap-2 ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500' : 'text-uzum-primary'}`}>
+          <img src="/logo.png" alt="Logo" className="h-8 object-contain" />
+          UZBECHKA <span className="text-sm font-bold text-stone-500 tracking-normal hidden sm:inline">DENAN bekary</span>
+        </h1>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-2 px-2 py-1 rounded-full border ${isOnline ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
             <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
@@ -318,6 +335,26 @@ export const AgentApp: React.FC = () => {
                       ))}
                     </div>
                   </div>
+
+                  {/* Due Date Picker for Debt */}
+                  {paymentMethod === 'debt' && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-3"
+                    >
+                      <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Дата возврата (Дедлайн)</label>
+                      <div className="relative">
+                        <input
+                          type="datetime-local"
+                          className={`w-full p-4 rounded-2xl border-none outline-none font-bold text-sm ${theme === 'futuristic' ? 'bg-white/5 text-white color-scheme-dark' : 'bg-uzum-bg text-uzum-text'}`}
+                          value={dueDate ? dueDate.slice(0, 16) : ''}
+                          onChange={(e) => setDueDate(e.target.value)}
+                        />
+                        <Calendar className={`absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-primary'}`} size={20} />
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Courier & Shop Selection */}
                   <div className="grid grid-cols-2 gap-4">
@@ -486,25 +523,50 @@ export const AgentApp: React.FC = () => {
                 <Plus size={20} />
               </button>
             </div>
-            {shops.filter(s => s.agentId === user?.id).map(shop => (
-              <div key={shop.id} className={`p-5 rounded-[2rem] border shadow-sm space-y-3 transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/5' : 'bg-white border-[#e2e5eb]'}`}>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className={`font-bold text-lg ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{shop.name}</h4>
-                    <p className={`text-xs flex items-center gap-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>
-                      <MapPin size={12} /> {shop.address || 'Адрес не указан'}
-                    </p>
+            <div className={`h-64 rounded-[2.5rem] overflow-hidden border shadow-inner mb-6 relative transition-all ${theme === 'futuristic' ? 'border-white/10' : 'border-[#e2e5eb]'}`}>
+              <MapContainer 
+                center={shops.length > 0 && shops[0].latitude ? [shops[0].latitude, shops[0].longitude] : BUKHARA_CENTER} 
+                zoom={13} 
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {shops.filter(s => !s.isArchived).map(shop => (
+                  <Marker 
+                    key={shop.id} 
+                    position={[shop.latitude || 39.7747, shop.longitude || 64.4286]}
+                  >
+                    <Popup>
+                      <div className="p-1">
+                        <p className="font-black text-xs uppercase tracking-widest">{shop.name}</p>
+                        <p className="text-[10px] text-stone-500">{shop.address}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {shops.filter(s => s.agentId === user?.id).map(shop => (
+                <div key={shop.id} className={`p-5 rounded-[2rem] border shadow-sm space-y-3 transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/5' : 'bg-white border-[#e2e5eb]'}`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className={`font-bold text-lg ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{shop.name}</h4>
+                      <p className={`text-xs flex items-center gap-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>
+                        <MapPin size={12} /> {shop.address || 'Адрес не указан'}
+                      </p>
+                    </div>
+                    <div className={`p-2 rounded-xl transition-all ${theme === 'futuristic' ? 'bg-white/5 text-cyan-400' : 'bg-uzum-bg text-uzum-primary'}`}>
+                      <Store size={20} />
+                    </div>
                   </div>
-                  <div className={`p-2 rounded-xl transition-all ${theme === 'futuristic' ? 'bg-white/5 text-cyan-400' : 'bg-uzum-bg text-uzum-primary'}`}>
-                    <Store size={20} />
+                  <div className={`pt-3 border-t flex justify-between items-center ${theme === 'futuristic' ? 'border-white/5' : 'border-stone-100'}`}>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Клиент:</span>
+                    <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{users.find(u => u.id === shop.clientId)?.name}</span>
                   </div>
                 </div>
-                <div className={`pt-3 border-t flex justify-between items-center ${theme === 'futuristic' ? 'border-white/5' : 'border-stone-100'}`}>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Клиент:</span>
-                  <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{users.find(u => u.id === shop.clientId)?.name}</span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 

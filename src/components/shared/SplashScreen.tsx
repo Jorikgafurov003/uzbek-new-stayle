@@ -10,7 +10,7 @@ const slides = [
     emoji: '🛍️',
     bg: 'from-[#6C1EFF] to-[#9C6BFF]',
     accent: '#6C1EFF',
-    title: 'UZBECHKA',
+    title: 'UZBECHKA DENAN bekary',
     subtitle: 'Pro Delivery Platform',
     desc: 'Умная система доставки для вашего бизнеса. Управляйте заказами в реальном времени.',
   },
@@ -79,10 +79,14 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            className={`w-64 h-64 rounded-[3rem] bg-gradient-to-br ${slide.bg} flex items-center justify-center shadow-2xl mb-10`}
+            className={`w-64 h-64 rounded-[3rem] bg-gradient-to-br ${slide.bg} flex items-center justify-center shadow-2xl mb-10 overflow-hidden relative`}
             style={{ boxShadow: `0 30px 60px ${slide.accent}40` }}
           >
-            <span style={{ fontSize: 100 }}>{slide.emoji}</span>
+            {current === 0 ? (
+              <img src="/logo.png" alt="Logo" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+            ) : (
+              <span style={{ fontSize: 100 }}>{slide.emoji}</span>
+            )}
           </motion.div>
 
           {/* Text */}

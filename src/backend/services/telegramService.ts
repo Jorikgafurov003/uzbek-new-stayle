@@ -1,12 +1,12 @@
 import fetch from 'node-fetch';
-import Database from 'better-sqlite3';
+import { PgDatabase } from '../models/pg-wrapper.js';
 
 export class TelegramService {
-    constructor(private db: Database.Database) { }
+    constructor(private db: PgDatabase) { }
 
     async sendAd(message: string, photoUrl?: string) {
-        const token = this.getSetting('telegram_bot_token');
-        const chatId = this.getSetting('telegram_chat_id');
+        const token = await this.getSetting('telegram_bot_token');
+        const chatId = await this.getSetting('telegram_chat_id');
 
         if (!token || !chatId) {
             throw new Error('Telegram bot token or chat ID not configured');
@@ -47,8 +47,8 @@ export class TelegramService {
         }
     }
 
-    private getSetting(key: string): string | null {
-        const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
+    private async getSetting(key: string): Promise<string | null> {
+        const row = await this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
         return row ? row.value : null;
     }
 }
