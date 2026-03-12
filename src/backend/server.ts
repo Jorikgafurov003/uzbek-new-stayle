@@ -487,8 +487,17 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     console.log("Starting in PRODUCTION mode (Static serving)");
-    app.use(express.static(path.join(projectRoot, "dist")));
-    app.get("*", (req, res) => res.sendFile(path.join(projectRoot, "dist/index.html")));
+    // Serve static assets with long cache, but HTML with no-cache
+    app.use(express.static(path.join(projectRoot, "dist"), { 
+      maxAge: '1y',
+      index: false // Let the catchall handle index.html
+    }));
+    app.get("*", (req, res) => {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.sendFile(path.join(projectRoot, "dist/index.html"));
+    });
   }
 
   // Error logging middleware
