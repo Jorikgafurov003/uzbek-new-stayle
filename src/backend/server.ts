@@ -475,7 +475,10 @@ async function startServer() {
   });
 
   // Vite middleware
-  if (process.env.NODE_ENV !== "production") {
+  const isProduction = process.env.NODE_ENV === "production" || fs.existsSync(path.join(projectRoot, "dist"));
+
+  if (!isProduction) {
+    console.log("Starting in DEVELOPMENT mode (Vite middleware)");
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
       appType: "spa",
@@ -483,6 +486,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    console.log("Starting in PRODUCTION mode (Static serving)");
     app.use(express.static(path.join(projectRoot, "dist")));
     app.get("*", (req, res) => res.sendFile(path.join(projectRoot, "dist/index.html")));
   }
