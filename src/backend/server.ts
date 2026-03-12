@@ -39,14 +39,18 @@ async function startServer() {
   const deployService = new DeployService();
   const firebaseService = FirebaseService.getInstance();
 
-  // Schedulers
-  cron.schedule('0 */6 * * *', () => aiService.generateBusinessInsights());
-  cron.schedule('0 0 * * *', () => {
-    kpiService.calculateKPIs();
-    monitoringService.checkHealth();
-  });
-  cron.schedule('0 */12 * * *', () => aiService.analyzeSecurity());
-  cron.schedule('*/1 * * * *', () => monitoringService.checkHealth());
+  // Only run heavy cron jobs in production with ENABLE_CRON=true to save memory on free tier
+  if (process.env.ENABLE_CRON === 'true') {
+    cron.schedule('0 */6 * * *', () => aiService.generateBusinessInsights());
+    cron.schedule('0 0 * * *', () => {
+      kpiService.calculateKPIs();
+      monitoringService.checkHealth();
+    });
+    cron.schedule('0 */12 * * *', () => aiService.analyzeSecurity());
+    cron.schedule('*/5 * * * *', () => monitoringService.checkHealth()); // was every 1 min, now every 5
+  } else {
+    console.log("[Cron] Scheduled jobs disabled (set ENABLE_CRON=true to enable).");
+  }
 
   app.use(cors());
   app.use(compression());

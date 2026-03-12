@@ -328,7 +328,29 @@ const initDb = async () => {
     for (const [key, value] of seedSettings) {
       await db.prepare("INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING").run(key, value);
     }
-    
+
+    // Seed categories
+    const seedCategories = ['Хлеб и выпечка', 'Торты', 'Пирожные', 'Напитки', 'Другое'];
+    for (const catName of seedCategories) {
+      await db.prepare("INSERT INTO categories (name) SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = $1)").run(catName);
+    }
+
+    // Seed example products
+    const catRow = await db.prepare("SELECT id FROM categories WHERE name = 'Хлеб и выпечка' LIMIT 1").get() as any;
+    if (catRow) {
+      const seedProducts = [
+        ['Лепёшка', 8000, 'Свежая лепёшка из тандыра', catRow.id],
+        ['Самса', 5000, 'Самса с мясом', catRow.id],
+      ];
+      for (const [name, price, description, categoryId] of seedProducts) {
+        await db.prepare(`
+          INSERT INTO products (name, price, description, "categoryId", stock)
+          SELECT $1, $2, $3, $4, 50
+          WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = $1)
+        `).run(name, price, description, categoryId);
+      }
+    }
+
     console.log("PostgreSQL Database initialized successfully");
   } catch (error) {
     console.error("Database initialization failed:", error);
