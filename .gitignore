@@ -2,6 +2,8 @@ node_modules/
 build/
 dist/
 dist-backend/
+dist-electron/
+out/
 .idea/
 .neon/
 .DS_Store
@@ -11,3 +13,7 @@ dist-backend/
 *.db
 *.db-shm
 *.db-wal
+check_*.js
+sync_*.js
+google-services.json
+!android/app/google-services.json

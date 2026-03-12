@@ -6,7 +6,7 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure upload directories exist
+const projectRoot = process.cwd();
 const uploadDirs = [
   'uploads/products',
   'uploads/users',
@@ -15,7 +15,7 @@ const uploadDirs = [
   'uploads/proofs'
 ];
 uploadDirs.forEach(dir => {
-  const fullPath = path.join(__dirname, '../../../../', dir);
+  const fullPath = path.join(projectRoot, dir);
   if (!fs.existsSync(fullPath)) {
     fs.mkdirSync(fullPath, { recursive: true });
   }

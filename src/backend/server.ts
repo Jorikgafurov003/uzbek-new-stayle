@@ -51,7 +51,8 @@ async function startServer() {
   app.use(cors());
   app.use(compression());
   app.use(express.json({ limit: '50mb' }));
-  app.use('/uploads', express.static(path.join(__dirname, '../../../../uploads')));
+  const projectRoot = process.cwd();
+  app.use('/uploads', express.static(path.join(projectRoot, 'uploads')));
 
   // Multer setup
   const storage = multer.diskStorage({
@@ -464,9 +465,19 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "../../dist")));
-    app.get("*", (req, res) => res.sendFile(path.join(__dirname, "../../dist/index.html")));
+    app.use(express.static(path.join(projectRoot, "dist")));
+    app.get("*", (req, res) => res.sendFile(path.join(projectRoot, "dist/index.html")));
   }
+
+  // Error logging middleware
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(`[Global Error] ${req.method} ${req.url}:`, err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message,
+      path: req.url 
+    });
+  });
 
   const port = process.env.PORT || 3000;
   httpServer.listen(Number(port), "0.0.0.0", () => {
