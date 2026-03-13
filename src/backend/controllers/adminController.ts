@@ -1,7 +1,7 @@
 import db from '../models/db.js';
 
 export const getAIInsights = async (req: any, res: any) => {
-  const insights = await db.prepare("SELECT * FROM business_insights ORDER BY createdAt DESC LIMIT 10").all();
+  const insights = await db.prepare('SELECT * FROM business_insights ORDER BY createdAt DESC LIMIT 10').all();
   res.json(insights);
 };
 
@@ -21,7 +21,7 @@ export const getKPILeaderboard = async (req: any, res: any) => {
 };
 
 export const getSystemHealth = async (req: any, res: any) => {
-  const logs = await db.prepare("SELECT * FROM system_health_logs ORDER BY createdAt DESC LIMIT 50").all();
+  const logs = await db.prepare('SELECT * FROM system_health_logs ORDER BY createdAt DESC LIMIT 50').all();
   res.json(logs);
 };
 
@@ -37,38 +37,38 @@ export const getSecurityAlerts = async (req: any, res: any) => {
 
 export const getTopStats = async (req: any, res: any) => {
   try {
-    const monthStart = "CURRENT_DATE - INTERVAL '1 month'"; // PostgreSQL valid date logic instead of SQLite date('now')
+    const monthStart = "date('now', '-1 month')";
 
     const topAgent = await db.prepare(`
       SELECT u.id, u.name, u.photo, COUNT(o.id) as count
       FROM orders o
-      JOIN users u ON o."agentId" = u.id
-      WHERE o."createdAt" >= ${monthStart}
+      JOIN users u ON o.agentId = u.id
+      WHERE o.createdAt >= ${monthStart}
       GROUP BY u.id, u.name, u.photo ORDER BY count DESC LIMIT 1
     `).get();
 
     const topCourier = await db.prepare(`
       SELECT u.id, u.name, u.photo, COUNT(o.id) as count
       FROM orders o
-      JOIN users u ON o."courierId" = u.id
-      WHERE o."orderStatus" = 'delivered' AND o."createdAt" >= ${monthStart}
+      JOIN users u ON o.courierId = u.id
+      WHERE o.orderStatus = 'delivered' AND o.createdAt >= ${monthStart}
       GROUP BY u.id, u.name, u.photo ORDER BY count DESC LIMIT 1
     `).get();
 
     const topClient = await db.prepare(`
       SELECT u.id, u.name, u.photo, COUNT(o.id) as count
       FROM orders o
-      JOIN users u ON o."clientId" = u.id
-      WHERE o."createdAt" >= ${monthStart}
+      JOIN users u ON o.clientId = u.id
+      WHERE o.createdAt >= ${monthStart}
       GROUP BY u.id, u.name, u.photo ORDER BY count DESC LIMIT 1
     `).get();
 
     const topSeller = await db.prepare(`
       SELECT p.id, p.name, p.image, SUM(oi.quantity) as count
       FROM order_items oi
-      JOIN products p ON oi."productId" = p.id
-      JOIN orders o ON oi."orderId" = o.id
-      WHERE o."createdAt" >= ${monthStart}
+      JOIN products p ON oi.productId = p.id
+      JOIN orders o ON oi.orderId = o.id
+      WHERE o.createdAt >= ${monthStart}
       GROUP BY p.id, p.name, p.image ORDER BY count DESC LIMIT 1
     `).get();
 
@@ -81,19 +81,19 @@ export const getTopStats = async (req: any, res: any) => {
 export const getSalaryReport = async (req: any, res: any) => {
   const report = await db.prepare(`
     SELECT 
-      u.id as "userId",
-      u.name as "userName", 
-      u.photo as "userPhoto",
+      u.id as userId,
+      u.name as userName, 
+      u.photo as userPhoto,
       u.role,
-      sc."baseSalary",
-      sc."commissionPercent" as "salesPercentage",
-      COALESCE(SUM(o."totalPrice"), 0) as "salesAmount",
-      (COALESCE(SUM(o."totalPrice"), 0) * COALESCE(sc."commissionPercent", 0) / 100) as "commissionEarned"
+      sc.baseSalary,
+      sc.commissionPercent as salesPercentage,
+      COALESCE(SUM(o.totalPrice), 0) as salesAmount,
+      (COALESCE(SUM(o.totalPrice), 0) * COALESCE(sc.commissionPercent, 0) / 100) as commissionEarned
     FROM users u
-    LEFT JOIN user_salary_config sc ON u.id = sc."userId"
-    LEFT JOIN orders o ON u.id = o."agentId" AND o."paymentStatus" = 'paid' AND o."createdAt" >= CURRENT_DATE - INTERVAL '1 month'
+    LEFT JOIN user_salary_config sc ON u.id = sc.userId
+    LEFT JOIN orders o ON u.id = o.agentId AND o.paymentStatus = 'paid' AND o.createdAt >= date('now', '-1 month')
     WHERE u.role IN ('agent', 'courier')
-    GROUP BY u.id, sc."baseSalary", sc."commissionPercent"
+    GROUP BY u.id, sc.baseSalary, sc.commissionPercent
   `).all();
   res.json(report);
 };
@@ -103,12 +103,12 @@ export const getAccounting = async (req: any, res: any) => {
     // Consolidated Query for Summary
     const summaryQuery = `
       SELECT 
-        (SELECT SUM("totalPrice") FROM orders WHERE "paymentStatus" = 'paid') as "totalIncome",
-        (SELECT SUM("totalPrice") FROM orders WHERE "paymentStatus" = 'paid' AND "paymentType" = 'cash') as "cashIncome",
-        (SELECT SUM("totalPrice") FROM orders WHERE "paymentStatus" = 'paid' AND "paymentType" = 'card') as "cardIncome",
-        (SELECT SUM(amount) FROM debts WHERE status = 'pending') as "unpaidDebts",
-        (SELECT SUM(amount) FROM debts WHERE status = 'paid') as "repaidDebts",
-        (SELECT SUM(amount) FROM expenses) as "totalExpenses"
+        (SELECT SUM(totalPrice) FROM orders WHERE paymentStatus = 'paid') as totalIncome,
+        (SELECT SUM(totalPrice) FROM orders WHERE paymentStatus = 'paid' AND paymentType = 'cash') as cashIncome,
+        (SELECT SUM(totalPrice) FROM orders WHERE paymentStatus = 'paid' AND paymentType = 'card') as cardIncome,
+        (SELECT SUM(amount) FROM debts WHERE status = 'pending') as unpaidDebts,
+        (SELECT SUM(amount) FROM debts WHERE status = 'paid') as repaidDebts,
+        (SELECT SUM(amount) FROM expenses) as totalExpenses
     `;
     const summaryResult: any = await db.prepare(summaryQuery).get();
 
@@ -120,22 +120,24 @@ export const getAccounting = async (req: any, res: any) => {
     const totalExpenses = summaryResult?.totalExpenses || 0;
 
     // List of expenses
-    const expensesList = await db.prepare("SELECT * FROM expenses ORDER BY date DESC").all();
+    const expensesList = await db.prepare('SELECT * FROM expenses ORDER BY date DESC').all();
 
     // Calculate COGS
     const cogsQuery = `
-      SELECT SUM(oi.quantity * COALESCE(p."costPrice", 0)) as totalCogs
+      SELECT SUM(oi.quantity * COALESCE(p.costPrice, 0)) as totalCogs
       FROM order_items oi
-      JOIN products p ON oi."productId" = p.id
-      JOIN orders o ON oi."orderId" = o.id
-      WHERE o."paymentStatus" = 'paid'
+      JOIN products p ON oi.productId = p.id
+      JOIN orders o ON oi.orderId = o.id
+      WHERE o.paymentStatus = 'paid'
     `;
-    // Try catch specifically for COGS in case of unquoted column issues temporarily while translating
+    
     let totalCogs = 0;
     try {
         const cogsResult: any = await db.prepare(cogsQuery).get();
-        totalCogs = cogsResult?.totalcogs || 0;
-    } catch { }  // ignoring during port
+        totalCogs = cogsResult?.totalCogs || 0;
+    } catch (err) { 
+        console.error("COGS error:", err);
+    }
 
     // Actual Revenue (Direct + Repaid)
     const actualRevenue = totalIncome + repaidDebts;

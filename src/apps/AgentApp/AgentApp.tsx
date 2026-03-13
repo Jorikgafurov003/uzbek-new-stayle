@@ -69,17 +69,19 @@ export const AgentApp: React.FC = () => {
   const [newShopData, setNewShopData] = useState({ name: '', address: '', latitude: 39.7747, longitude: 64.4286, clientId: '' });
   const { shops, addShop, debts, banners } = useData();
 
+  const activeBanners = React.useMemo(() => banners.filter(b => b.isActive), [banners]);
+
   useEffect(() => {
-    if (banners.length > 0) {
+    if (activeBanners.length > 0) {
       const timer = setInterval(() => {
-        setCurrentBanner(prev => (prev + 1) % banners.length);
+        setCurrentBanner(prev => (prev + 1) % activeBanners.length);
       }, 5000);
       return () => clearInterval(timer);
     }
-  }, [banners]);
+  }, [activeBanners]);
 
 
-  const clients = users.filter(u => u.role === 'client');
+  const clients = React.useMemo(() => users.filter(u => u.role === 'client'), [users]);
 
   const handleCreateClient = async () => {
     if (!newClientData.name || !newClientData.phone) return;
@@ -218,7 +220,7 @@ export const AgentApp: React.FC = () => {
 
       <main className="p-4 max-w-2xl mx-auto">
         {/* Banner Section */}
-        {banners.filter(b => b.isActive).length > 0 && (
+        {activeBanners.length > 0 && (
           <div className={`mb-6 relative h-40 rounded-[2.5rem] overflow-hidden shadow-lg border ${theme === 'futuristic' ? 'border-white/20' : 'border-stone-100'}`}>
             <AnimatePresence mode="wait">
               <motion.div
@@ -228,15 +230,15 @@ export const AgentApp: React.FC = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className="absolute inset-0"
               >
-                <img src={banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].imageUrl} className="w-full h-full object-cover" />
+                <img src={activeBanners[currentBanner % activeBanners.length].imageUrl} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6">
-                  <h2 className="text-white text-lg font-bold leading-tight">{banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].title}</h2>
+                  <h2 className="text-white text-lg font-bold leading-tight">{activeBanners[currentBanner % activeBanners.length].title}</h2>
                 </div>
               </motion.div>
             </AnimatePresence>
             <div className="absolute bottom-4 right-6 flex gap-1.5">
-              {banners.filter(b => b.isActive).map((_, i) => (
-                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentBanner % banners.filter(b => b.isActive).length ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+              {activeBanners.map((_, i) => (
+                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentBanner % activeBanners.length ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
               ))}
             </div>
           </div>
@@ -277,7 +279,7 @@ export const AgentApp: React.FC = () => {
                   />
                 </div>
                 <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2">
-                  {products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(product => (
+                  {React.useMemo(() => products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())), [products, searchQuery]).map(product => (
                     <div key={product.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
                       <div className="flex items-center gap-3">
                         <img src={product.image} className="w-10 h-10 rounded-lg object-cover" />

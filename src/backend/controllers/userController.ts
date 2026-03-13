@@ -17,7 +17,7 @@ export const updateUser = async (req: any, res: any) => {
     return res.json({ success: true, message: "No fields to update" });
   }
 
-  const setString = keys.map((k, i) => `"${k}" = ?`).join(", ");
+  const setString = keys.map((k) => `${k} = ?`).join(", ");
   const values = Object.values(data);
   
   await db.prepare(`UPDATE users SET ${setString} WHERE id = ?`).run(...values, req.params.id);

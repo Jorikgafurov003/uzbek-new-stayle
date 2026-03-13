@@ -1,14 +1,14 @@
-import { PgDatabase } from "../models/pg-wrapper.js";
+import { SqliteDatabase } from "../models/sqlite-wrapper.js";
 import { Server } from "socket.io";
 
 export class MonitoringService {
-  constructor(private db: PgDatabase, private io: Server) {}
+  constructor(private db: SqliteDatabase, private io: Server) {}
 
   async checkHealth() {
     try {
       const logs = await this.db.prepare(`
         SELECT * FROM system_errors 
-        WHERE fixed = 0 AND "createdAt" >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
+        WHERE fixed = 0 AND createdAt >= datetime('now', '-1 hour')
       `).all();
 
       const memory = process.memoryUsage();

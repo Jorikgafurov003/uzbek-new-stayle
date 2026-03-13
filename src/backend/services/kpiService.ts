@@ -1,7 +1,7 @@
-import { PgDatabase } from "../models/pg-wrapper.js";
+import { SqliteDatabase } from "../models/sqlite-wrapper.js";
 
 export class KPIService {
-  constructor(private db: PgDatabase) {}
+  constructor(private db: SqliteDatabase) {}
 
   async calculateKPIs() {
     try {
@@ -9,23 +9,22 @@ export class KPIService {
       const agents = await this.db.prepare("SELECT * FROM users WHERE role = 'agent'").all();
       for (const agent of agents as any) {
         const stats = await this.db.prepare(`
-          SELECT COUNT(id) as total_orders, SUM("totalPrice") as total_sales
+          SELECT COUNT(id) as total_orders, SUM(totalPrice) as total_sales
           FROM orders
-          WHERE "agentId" = $1 AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
+          WHERE agentId = $1 AND createdAt >= date('now', '-30 days')
         `).get(agent.id) as any;
 
         const clientGrowth = await this.db.prepare(`
           SELECT COUNT(id) as count
           FROM users
-          WHERE agent_id = $1 AND role = 'client' AND "lastSeen" >= CURRENT_DATE - INTERVAL '30 days'
+          WHERE agent_id = $1 AND role = 'client' AND lastSeen >= date('now', '-30 days')
         `).get(agent.id) as any;
 
         const score = (stats.total_sales / 1000000) * 10 + (stats.total_orders * 2) + (clientGrowth.count * 5);
-        const level = this.calculateLevel(score);
-
+        
         await this.db.prepare(`
           INSERT INTO employee_kpi (user_id, score, month)
-          VALUES ($1, $2, TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
+          VALUES ($1, $2, strftime('%Y-%m', 'now'))
           ON CONFLICT(user_id) DO UPDATE SET 
             score = EXCLUDED.score,
             month = EXCLUDED.month
@@ -38,21 +37,20 @@ export class KPIService {
         const stats = await this.db.prepare(`
           SELECT COUNT(id) as total_deliveries
           FROM orders
-          WHERE "courierId" = $1 AND "orderStatus" = 'delivered' AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
+          WHERE courierId = $1 AND orderStatus = 'delivered' AND createdAt >= date('now', '-30 days')
         `).get(courier.id) as any;
 
         const failed = await this.db.prepare(`
           SELECT COUNT(id) as count
           FROM orders
-          WHERE "courierId" = $1 AND "orderStatus" = 'cancelled' AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
+          WHERE courierId = $1 AND orderStatus = 'cancelled' AND createdAt >= date('now', '-30 days')
         `).get(courier.id) as any;
 
         const score = (stats.total_deliveries * 5) - (failed.count * 10);
-        const level = this.calculateLevel(score);
 
         await this.db.prepare(`
           INSERT INTO employee_kpi (user_id, score, month)
-          VALUES ($1, $2, TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
+          VALUES ($1, $2, strftime('%Y-%m', 'now'))
           ON CONFLICT(user_id) DO UPDATE SET 
             score = EXCLUDED.score,
             month = EXCLUDED.month
@@ -82,7 +80,7 @@ export class KPIService {
       const orders = await this.db.prepare(`
         SELECT COUNT(id) as count
         FROM orders
-        WHERE ("clientId" = $1 OR "agentId" = $2 OR "courierId" = $3) AND "orderStatus" = 'delivered'
+        WHERE (clientId = $1 OR agentId = $2 OR courierId = $3) AND orderStatus = 'delivered'
       `).get(user.id, user.id, user.id) as any;
 
       const rating = Math.min(5, 3 + (orders.count / 10));

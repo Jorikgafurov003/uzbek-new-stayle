@@ -59,6 +59,89 @@ const StarRating: React.FC<{ rating: number; count?: number; size?: number }> = 
   );
 };
 
+const DigitalClock: React.FC<{ theme: string }> = ({ theme }) => {
+  const [liveTime, setLiveTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setLiveTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="text-center mb-6">
+      <div className={`text-5xl md:text-6xl font-black tracking-tight tabular-nums ${theme === 'futuristic' ? 'text-cyan-400' : 'text-stone-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+        {liveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </div>
+      <p className={`text-sm font-semibold mt-2 capitalize ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>
+        {liveTime.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+      </p>
+    </div>
+  );
+};
+
+const WeatherAndExchange: React.FC<{ theme: string }> = ({ theme }) => {
+  const [weather, setWeather] = useState<{ temp: string; desc: string; icon: string } | null>(null);
+  const [usdRate, setUsdRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('https://wttr.in/Bukhara?format=j1')
+      .then(r => r.json())
+      .then(d => {
+        const cur = d.current_condition?.[0];
+        if (cur) setWeather({
+          temp: cur.temp_C,
+          desc: cur.weatherDesc?.[0]?.value || '',
+          icon: cur.weatherIconUrl?.[0]?.value || ''
+        });
+      })
+      .catch(() => { });
+
+    fetch('https://open.er-api.com/v6/latest/USD')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.rates?.UZS) setUsdRate(Math.round(d.rates.UZS));
+      })
+      .catch(() => { });
+  }, []);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Bukhara Weather */}
+      <div className={`p-5 rounded-2xl border flex items-center gap-4 ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-gradient-to-br from-sky-50 to-blue-50 border-sky-100'}`}>
+        {weather?.icon ? (
+          <img src={weather.icon} alt="weather" className="w-14 h-14" />
+        ) : (
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${theme === 'futuristic' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-sky-100 text-sky-500'}`}>☀️</div>
+        )}
+        <div>
+          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-white/40' : 'text-sky-500'}`}>Бухара</p>
+          {weather ? (
+            <>
+              <p className={`text-2xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{weather.temp}°C</p>
+              <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>{weather.desc}</p>
+            </>
+          ) : (
+            <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>Загрузка...</p>
+          )}
+        </div>
+      </div>
+
+      {/* USD/UZS Rate */}
+      <div className={`p-5 rounded-2xl border flex items-center gap-4 ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-100'}`}>
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black ${theme === 'futuristic' ? 'bg-green-500/10 text-green-400' : 'bg-emerald-100 text-emerald-600'}`}>$</div>
+        <div>
+          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-white/40' : 'text-emerald-500'}`}>USD / UZS</p>
+          {usdRate ? (
+            <p className={`text-2xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{usdRate.toLocaleString()}</p>
+          ) : (
+            <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>Загрузка...</p>
+          )}
+          <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>Курс ЦБ</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const LocationPicker = ({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number, address?: string) => void }) => {
   const { apiFetch } = useData();
   const map = useMap();
@@ -81,7 +164,6 @@ const LocationPicker = ({ onLocationSelect }: { onLocationSelect: (lat: number, 
   });
   return null;
 };
-
 
 export const AdminApp: React.FC = () => {
   const {
@@ -118,40 +200,6 @@ export const AdminApp: React.FC = () => {
       fetchTopStats();
     }
   }, [activeTab]);
-
-  // === LIVE CLOCK ===
-  const [liveTime, setLiveTime] = useState(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setLiveTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // === WEATHER (wttr.in — no API key) ===
-  const [weather, setWeather] = useState<{ temp: string; desc: string; icon: string } | null>(null);
-  useEffect(() => {
-    fetch('https://wttr.in/Bukhara?format=j1')
-      .then(r => r.json())
-      .then(d => {
-        const cur = d.current_condition?.[0];
-        if (cur) setWeather({
-          temp: cur.temp_C,
-          desc: cur.weatherDesc?.[0]?.value || '',
-          icon: cur.weatherIconUrl?.[0]?.value || ''
-        });
-      })
-      .catch(() => { });
-  }, []);
-
-  // === USD/UZS EXCHANGE RATE ===
-  const [usdRate, setUsdRate] = useState<number | null>(null);
-  useEffect(() => {
-    fetch('https://open.er-api.com/v6/latest/USD')
-      .then(r => r.json())
-      .then(d => {
-        if (d?.rates?.UZS) setUsdRate(Math.round(d.rates.UZS));
-      })
-      .catch(() => { });
-  }, []);
 
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -279,8 +327,8 @@ export const AdminApp: React.FC = () => {
 
   const COLORS = ['#D4AF37', '#8B0000', '#F4D03F', '#9A7D0A'];
 
-  const agents = users.filter(u => u.role === 'agent');
-  const couriers = users.filter(u => u.role === 'courier');
+  const agents = React.useMemo(() => users.filter(u => u.role === 'agent'), [users]);
+  const couriers = React.useMemo(() => users.filter(u => u.role === 'courier'), [users]);
 
   interface ProductSale {
     name: string;
@@ -289,20 +337,22 @@ export const AdminApp: React.FC = () => {
   }
 
   // Calculate Top Products
-  const productSales = orders.reduce((acc: { [key: string]: ProductSale }, order) => {
-    order.items.forEach(item => {
-      if (!acc[item.productId]) {
-        acc[item.productId] = { name: item.productName, count: 0, revenue: 0 };
-      }
-      acc[item.productId].count += item.quantity;
-      acc[item.productId].revenue += item.quantity * item.price;
-    });
-    return acc;
-  }, {});
+  const productSales = React.useMemo(() => {
+    return orders.reduce((acc: { [key: string]: ProductSale }, order) => {
+      order.items.forEach(item => {
+        if (!acc[item.productId]) {
+          acc[item.productId] = { name: item.productName, count: 0, revenue: 0 };
+        }
+        acc[item.productId].count += item.quantity;
+        acc[item.productId].revenue += item.quantity * item.price;
+      });
+      return acc;
+    }, {});
+  }, [orders]);
 
-  const topProducts: ProductSale[] = (Object.values(productSales) as ProductSale[])
+  const topProducts: ProductSale[] = React.useMemo(() => (Object.values(productSales) as ProductSale[])
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .slice(0, 5), [productSales]);
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-all duration-500 ${theme === 'futuristic' ? 'bg-[#050505] text-white' : 'bg-[#f2f4f7] text-uzum-text'}`}>
@@ -380,52 +430,8 @@ export const AdminApp: React.FC = () => {
 
               {/* Live Time + Weather + USD */}
               <div className={`lg:col-span-7 p-8 rounded-[3.5rem] shadow-sm border flex flex-col justify-between transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
-                {/* Digital Clock */}
-                <div className="text-center mb-6">
-                  <div className={`text-5xl md:text-6xl font-black tracking-tight tabular-nums ${theme === 'futuristic' ? 'text-cyan-400' : 'text-stone-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {liveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </div>
-                  <p className={`text-sm font-semibold mt-2 capitalize ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>
-                    {liveTime.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                  </p>
-                </div>
-
-                {/* Weather + USD Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Bukhara Weather */}
-                  <div className={`p-5 rounded-2xl border flex items-center gap-4 ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-gradient-to-br from-sky-50 to-blue-50 border-sky-100'}`}>
-                    {weather?.icon ? (
-                      <img src={weather.icon} alt="weather" className="w-14 h-14" />
-                    ) : (
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${theme === 'futuristic' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-sky-100 text-sky-500'}`}>☀️</div>
-                    )}
-                    <div>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-white/40' : 'text-sky-500'}`}>Бухара</p>
-                      {weather ? (
-                        <>
-                          <p className={`text-2xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{weather.temp}°C</p>
-                          <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>{weather.desc}</p>
-                        </>
-                      ) : (
-                        <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>Загрузка...</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* USD/UZS Rate */}
-                  <div className={`p-5 rounded-2xl border flex items-center gap-4 ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-100'}`}>
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black ${theme === 'futuristic' ? 'bg-green-500/10 text-green-400' : 'bg-emerald-100 text-emerald-600'}`}>$</div>
-                    <div>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-white/40' : 'text-emerald-500'}`}>USD / UZS</p>
-                      {usdRate ? (
-                        <p className={`text-2xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{usdRate.toLocaleString()}</p>
-                      ) : (
-                        <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>Загрузка...</p>
-                      )}
-                      <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>Курс ЦБ</p>
-                    </div>
-                  </div>
-                </div>
+                <DigitalClock theme={theme} />
+                <WeatherAndExchange theme={theme} />
               </div>
             </div>
 
@@ -2994,7 +3000,7 @@ export const AdminApp: React.FC = () => {
                   photo: userPhotoPreview || undefined
                 };
 
-                handleConfirm(async () => {
+                const saveUser = async () => {
                   if (editingUser) {
                     await updateUser(editingUser.id, data);
                   } else {
@@ -3003,12 +3009,15 @@ export const AdminApp: React.FC = () => {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(data),
                     });
-                    await refreshData();
+                    await refreshData(['users']);
                   }
-                  setShowAddUser(false);
-                  setEditingUser(null);
-                  setUserPhotoPreview(null);
-                }, editingUser ? t('save') : t('createAccount'), t('areYouSure'));
+                };
+
+                saveUser();
+                setShowAddUser(false);
+                setEditingUser(null);
+                setUserPhotoPreview(null);
+                speak(editingUser ? 'Данные пользователя обновлены' : 'Новый пользователь зарегистрирован');
               }} className="space-y-6">
 
                 <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stone-200 rounded-[2rem] bg-stone-50 hover:bg-stone-100 transition-all cursor-pointer relative overflow-hidden group h-32">

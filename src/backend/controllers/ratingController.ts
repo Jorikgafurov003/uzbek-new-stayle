@@ -5,7 +5,7 @@ export const submitOrderRating = async (req: any, res: any) => {
     const { productRatings, courierRating, agentRating, courierComment, agentComment } = req.body;
 
     try {
-        const order = await db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
+        const order = await db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as any;
         if (!order) return res.status(404).json({ error: "Order not found" });
         if (order.is_rated) return res.status(400).json({ error: "Order already rated" });
 
@@ -42,7 +42,7 @@ export const submitOrderRating = async (req: any, res: any) => {
 };
 
 async function updateUserRating(userId: any, newRating: any) {
-    const user = await db.prepare("SELECT rating, rating_count FROM users WHERE id = ?").get(userId);
+    const user = await db.prepare("SELECT rating, rating_count FROM users WHERE id = ?").get(userId) as any;
     if (user) {
         const newCount = (user.rating_count || 0) + 1;
         const newAvg = ((user.rating || 0) * (user.rating_count || 0) + newRating) / newCount;
@@ -51,7 +51,7 @@ async function updateUserRating(userId: any, newRating: any) {
 }
 
 async function updateProductRating(productId: any, newRating: any) {
-    const product = await db.prepare("SELECT rating, rating_count FROM products WHERE id = ?").get(productId);
+    const product = await db.prepare("SELECT rating, rating_count FROM products WHERE id = ?").get(productId) as any;
     if (product) {
         const newCount = (product.rating_count || 0) + 1;
         const newAvg = ((product.rating || 0) * (product.rating_count || 0) + newRating) / newCount;

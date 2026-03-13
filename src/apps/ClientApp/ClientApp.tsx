@@ -172,11 +172,13 @@ export const ClientApp: React.FC = () => {
     setConfirmDialog({ isOpen: true, onConfirm, title, message });
   };
 
-  const activeBanners = banners.filter(b => b.isActive);
-  const slides = activeBanners.flatMap(b => {
-    const bannerImages = (b.images && b.images.length > 0) ? b.images : [b.imageUrl];
-    return bannerImages.map((img, i) => ({ bannerId: b.id, title: b.title, imageUrl: img, key: `${b.id}-${i}` }));
-  });
+  const slides = React.useMemo(() => {
+    const activeBanners = banners.filter(b => b.isActive);
+    return activeBanners.flatMap(b => {
+      const bannerImages = (b.images && b.images.length > 0) ? b.images : [b.imageUrl];
+      return bannerImages.map((img, i) => ({ bannerId: b.id, title: b.title, imageUrl: img, key: `${b.id}-${i}` }));
+    });
+  }, [banners]);
 
   useEffect(() => {
     if (slides.length > 0) {
@@ -187,12 +189,14 @@ export const ClientApp: React.FC = () => {
     }
   }, [slides.length]);
 
-  const filteredProducts = products.filter(p => {
-    const matchesCategory = selectedCategory ? p.categoryId === selectedCategory : true;
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredProducts = React.useMemo(() => {
+    return products.filter(p => {
+      const matchesCategory = selectedCategory ? p.categoryId === selectedCategory : true;
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [products, selectedCategory, searchQuery]);
 
   const addToCart = (product: any) => {
     setCart(prev => {
@@ -218,10 +222,12 @@ export const ClientApp: React.FC = () => {
     }));
   };
 
-  const total = cart.reduce((sum, item) => {
-    const price = item.product.discountPrice || item.product.price;
-    return sum + price * item.quantity;
-  }, 0);
+  const total = React.useMemo(() => {
+    return cart.reduce((sum, item) => {
+      const price = item.product.discountPrice || item.product.price;
+      return sum + price * item.quantity;
+    }, 0);
+  }, [cart]);
 
   const handleCheckout = async () => {
     if (!location) return alert(t('address'));

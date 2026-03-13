@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: uzbechka-backend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.0.0
+      - key: PORT
+        value: 3000
+      - key: ENABLE_CRON
+        value: "true"
+      - key: NODE_ENV
+        value: production
+    autoDeploy: true

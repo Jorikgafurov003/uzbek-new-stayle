@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Product, Category, Order, Stats, User, Banner, Debt, BusinessInsight, EmployeeKPI, ProfitForecast, SystemHealthLog, SecurityAlert, Review } from '../types';
 import { apiFetch, API_BASE_URL } from '../utils/api';
 import { useLanguage } from './LanguageContext';
@@ -209,9 +209,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     document.documentElement.setAttribute('data-brand', newBrand);
   };
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async (modules?: string[]) => {
     try {
-      const endpoints = [
+      const allEndpoints = [
         { name: 'products', url: '/api/products' },
         { name: 'categories', url: '/api/categories' },
         { name: 'orders', url: '/api/orders' },
@@ -234,6 +234,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { name: 'shops', url: '/api/shops' },
         { name: 'activityLogs', url: '/api/activity-logs' }
       ];
+
+      const endpoints = modules 
+        ? allEndpoints.filter(e => modules.includes(e.name))
+        : allEndpoints;
 
       const results = await Promise.all(
         endpoints.map(async (ep) => {
@@ -324,7 +328,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Critical error refreshing data:', error);
     }
-  };
+  }, [apiFetch, t]);
 
   const playSound = (type: 'order' | 'message' | 'success' | 'error') => {
     const sounds = {
@@ -601,7 +605,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify(updates),
     });
     await logActivity('Обновление пользователя', `Обновлен пользователь ID: ${id}`);
-    await refreshData();
+    await refreshData(['users', 'stats', 'topStats', 'activityLogs']);
   };
 
   const addBanner = async (banner: Partial<Banner>) => {
@@ -695,7 +699,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastLocationUpdateRef = useRef<number>(0);
   const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const updateUserLocation = async (lat: number, lng: number, speed?: number) => {
+  const updateUserLocation = useCallback(async (lat: number, lng: number, speed?: number) => {
     if (!user || !socketRef.current) return;
 
     // Debounce to once every 3 seconds
@@ -709,9 +713,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lastLocationUpdateRef.current = now;
     socketRef.current.emit('update_location', { userId: user.id, lat, lng, role: user.role, speed });
     setUsers(prev => prev.map(u => u.id === user.id ? { ...u, lat, lng } : u));
-  };
+  }, [user]);
 
-  const logActivity = async (action: string, details?: string) => {
+  const logActivity = useCallback(async (action: string, details?: string) => {
     if (!user) return;
     try {
       await apiFetch('/api/activity-logs', {
@@ -725,21 +729,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
           details
         })
       });
-    } catch (error) {
-      console.error('Failed to log activity:', error);
+    } catch (e) {
+      console.error('Activity logging failed:', e);
     }
-  };
+  }, [user, apiFetch]);
+
+  const contextValue = React.useMemo(() => ({
+    products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
+    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops, accounting, activityLogs, orderNotification, setOrderNotification,
+    refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
+    updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
+    addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
+    deployUpdate, setCommission, uploadProof, apiFetch, logActivity,
+    theme, setTheme, brandTheme, setBrandTheme, reviews, submitReview
+  }), [
+    products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
+    insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops, accounting, activityLogs, orderNotification,
+    theme, brandTheme, reviews
+  ]);
 
   return (
-    <DataContext.Provider value={{
-      products, categories, orders, stats, users, banners, settings, debts, systemErrors, isOnline,
-      insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops, accounting, activityLogs, orderNotification, setOrderNotification,
-      refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
-      updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
-      addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
-      deployUpdate, setCommission, uploadProof, apiFetch, logActivity,
-      theme, setTheme, brandTheme, setBrandTheme, reviews, submitReview
-    }}>
+    <DataContext.Provider value={contextValue}>
       {children}
     </DataContext.Provider>
   );

@@ -1,8 +1,8 @@
 import fetch from 'node-fetch';
-import { PgDatabase } from '../models/pg-wrapper.js';
+import { SqliteDatabase } from '../models/sqlite-wrapper.js';
 
 export class TelegramService {
-    constructor(private db: PgDatabase) { }
+    constructor(private db: SqliteDatabase) { }
 
     async sendAd(message: string, photoUrl?: string) {
         const token = await this.getSetting('telegram_bot_token');

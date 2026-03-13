@@ -1,23 +1,6 @@
 // API configuration
 const getApiBaseUrl = () => {
-  if (typeof window === 'undefined') return '';
-
-  // Use environment variable if provided (Vite)
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) return envUrl;
-
-  // If we are in a Capacitor environment (mobile app)
-  if (window.location.protocol === 'capacitor:') {
-    // If you have a specific production server, put it here:
-    return 'https://uzbek-new-stayle.onrender.com';
-    
-    // Fallback: if we don't have VITE_API_URL, try to deduce from current host 
-    // but capacitor://localhost won't work for remote server.
-    // For now, return empty or a default if known.
-    return ''; 
-  }
-  
-  return '';
+  return 'http://localhost:3000';
 };
 
 export const API_BASE_URL = getApiBaseUrl();

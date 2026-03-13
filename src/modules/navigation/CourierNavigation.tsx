@@ -105,6 +105,24 @@ export const CourierNavigation: React.FC<CourierNavigationProps> = ({
         return () => gpsService.stopTracking();
     }, [onLocationUpdate]);
 
+    const lastRoutePosRef = useRef<[number, number] | null>(null);
+
+    // Function to calculate distance between two points in meters
+    const getDistance = (p1: [number, number], p2: [number, number]) => {
+        const R = 6371e3; // metres
+        const lat1 = p1[1] * Math.PI / 180;
+        const lat2 = p2[1] * Math.PI / 180;
+        const deltaLat = (p2[1] - p1[1]) * Math.PI / 180;
+        const deltaLng = (p2[0] - p1[0]) * Math.PI / 180;
+
+        const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
+    };
+
     // Routing Effect
     useEffect(() => {
         if (!mapLoaded || !mapRef.current || !activeOrderId) {
@@ -120,9 +138,17 @@ export const CourierNavigation: React.FC<CourierNavigationProps> = ({
         const activeOrder = orders.find(o => o.id === activeOrderId);
         if (!activeOrder || !activeOrder.latitude || !activeOrder.longitude) return;
 
+        // Only update route if we moved more than 20 meters or changed active order
+        if (lastRoutePosRef.current && 
+            getDistance(courierPos, lastRoutePosRef.current) < 20 && 
+            activeOrder.id === activeOrderId) {
+            return;
+        }
+
         const fetchRoute = async () => {
             const routeData = await routeEngine.getRoute(courierPos, [activeOrder.longitude, activeOrder.latitude]);
             if (routeData && mapRef.current) {
+                lastRoutePosRef.current = courierPos;
                 const sourceId = 'route';
                 const geojson = {
                     type: 'Feature',
@@ -150,7 +176,7 @@ export const CourierNavigation: React.FC<CourierNavigationProps> = ({
         };
 
         fetchRoute();
-    }, [mapLoaded, activeOrderId, courierPos, orders]);
+    }, [mapLoaded, activeOrderId, courierPos, orders.length]); // Use orders.length instead of orders to avoid excessive updates
 
     return (
         <div className="w-full h-full relative">

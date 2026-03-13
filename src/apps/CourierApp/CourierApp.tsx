@@ -73,9 +73,9 @@ export const CourierApp: React.FC = () => {
     }
   }, [banners]);
 
-  const myDeliveries = orders.filter(o => o.courierId === user?.id && (o.orderStatus === 'confirmed' || o.orderStatus === 'on_way'));
-  const availableOrders = orders.filter(o => o.orderStatus === 'confirmed' && !o.courierId);
-  const historyDeliveries = orders.filter(o => o.courierId === user?.id && o.orderStatus === 'delivered');
+  const myDeliveries = React.useMemo(() => orders.filter(o => o.courierId === user?.id && (o.orderStatus === 'confirmed' || o.orderStatus === 'on_way')), [orders, user?.id]);
+  const availableOrders = React.useMemo(() => orders.filter(o => o.orderStatus === 'confirmed' && !o.courierId), [orders]);
+  const historyDeliveries = React.useMemo(() => orders.filter(o => o.courierId === user?.id && o.orderStatus === 'delivered'), [orders, user?.id]);
 
   useEffect(() => {
     const assignedOrders = orders.filter(o => o.courierId === user?.id && o.orderStatus === 'confirmed');
@@ -98,7 +98,7 @@ export const CourierApp: React.FC = () => {
         sessionStorage.setItem(alertedKey, 'true');
       }
     }
-  }, [orders, user?.id, myDeliveries.length]);
+  }, [orders, user?.id, myDeliveries.length, availableOrders.length, speak]);
 
   const acceptOrder = async (orderId: number) => {
     await updateOrder(orderId, { courierId: user?.id });
@@ -184,7 +184,7 @@ export const CourierApp: React.FC = () => {
               >
                 <img src={banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].imageUrl} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
-                  <h2 className="text-white text-sm font-bold leading-tight">{banners.filter(b => b.isActive)[currentBanner % banners.filter(b => b.isActive).length].title}</h2>
+                  <h2 className="text-white text-sm font-bold leading-tight">{banners.filter(b => b.isActive)[currentBanner % Math.max(1, banners.filter(b => b.isActive).length)]?.title}</h2>
                 </div>
               </motion.div>
             </AnimatePresence>
