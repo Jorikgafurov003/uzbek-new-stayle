@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { ShoppingBag, Globe } from 'lucide-react';
+import { Phone, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
+
+type AuthMode = 'email' | 'phone';
 
 export const Login: React.FC = () => {
   const [phone, setPhone] = useState('');
@@ -12,19 +14,21 @@ export const Login: React.FC = () => {
   const [smsCode, setSmsCode] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const { login, register, loginWithGoogle } = useAuth();
+  const [authMode, setAuthMode] = useState<AuthMode>('email');
+  const [phoneAuthLoading, setPhoneAuthLoading] = useState(false);
+  const { login, register, loginWithPhone, confirmPhoneCode, loginWithGoogle, phoneConfirmation } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // --- Вход по email (номер телефона + пароль через бэкенд) ---
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
       if (isRegister && !showSmsStep) {
         setShowSmsStep(true);
-        // In a real app, you'd trigger SMS here
         return;
       }
-      
+
       if (isRegister && showSmsStep) {
         if (smsCode !== '1234') {
           setError('Неверный код СМС (используйте 1234)');
@@ -39,16 +43,40 @@ export const Login: React.FC = () => {
     }
   };
 
+  // --- Вход по телефону (Firebase Phone Auth / SMS) ---
+  const handlePhoneSendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setPhoneAuthLoading(true);
+    try {
+      await loginWithPhone(phone);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка отправки SMS');
+    } finally {
+      setPhoneAuthLoading(false);
+    }
+  };
+
+  const handlePhoneVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await confirmPhoneCode(smsCode);
+    } catch (err: any) {
+      setError(err.message || 'Неверный код');
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[#f2f4f7] font-sans">
       <div className="absolute top-6 right-6 flex gap-2">
-        <button 
+        <button
           onClick={() => setLanguage('ru')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${language === 'ru' ? 'bg-uzum-primary text-white shadow-lg shadow-uzum-primary/20' : 'bg-white text-uzum-muted border border-[#e2e5eb]'}`}
         >
           RU
         </button>
-        <button 
+        <button
           onClick={() => setLanguage('uz')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${language === 'uz' ? 'bg-uzum-primary text-white shadow-lg shadow-uzum-primary/20' : 'bg-white text-uzum-muted border border-[#e2e5eb]'}`}
         >
@@ -56,7 +84,7 @@ export const Login: React.FC = () => {
         </button>
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-[#e2e5eb]"
@@ -72,72 +100,169 @@ export const Login: React.FC = () => {
           <p className="text-uzum-muted text-sm font-medium">{t('premiumDelivery')}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {isRegister && !showSmsStep && (
-            <div>
-              <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('name')}</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
-                placeholder={t('name')}
-                required
-              />
-            </div>
-          )}
-          {showSmsStep && (
-            <div>
-              <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Код из СМС</label>
-              <input
-                type="text"
-                value={smsCode}
-                onChange={(e) => setSmsCode(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
-                placeholder="1234"
-                required
-              />
-              <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Введите код 1234 для подтверждения</p>
-            </div>
-          )}
-          {!showSmsStep && (
-            <>
-              <div>
-                <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('phone')}</label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
-                  placeholder="+998 90 123 45 67"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('password')}</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            </>
-          )}
-
-          {error && <p className="text-red-500 text-xs text-center font-medium bg-red-50 py-2 rounded-lg">{error}</p>}
-
+        {/* Вкладки: Email / Телефон */}
+        <div className="flex gap-2 mb-6">
           <button
-            type="submit"
-            className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4"
+            onClick={() => { setAuthMode('email'); setError(''); setShowSmsStep(false); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+              authMode === 'email'
+                ? 'bg-uzum-primary text-white shadow-lg shadow-uzum-primary/20'
+                : 'bg-uzum-bg text-uzum-muted'
+            }`}
           >
-            {showSmsStep ? 'Подтвердить СМС' : isRegister ? t('createAccount') : t('signIn')}
+            <Mail size={16} />
+            {t('password') ? 'Пароль' : 'Password'}
           </button>
-        </form>
+          <button
+            onClick={() => { setAuthMode('phone'); setError(''); setShowSmsStep(false); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+              authMode === 'phone'
+                ? 'bg-uzum-primary text-white shadow-lg shadow-uzum-primary/20'
+                : 'bg-uzum-bg text-uzum-muted'
+            }`}
+          >
+            <Phone size={16} />
+            SMS
+          </button>
+        </div>
 
-        <div className="mt-4 flex items-center justify-between gap-4">
+        {/* ========== EMAIL/PASSWORD MODE ========== */}
+        {authMode === 'email' && (
+          <form onSubmit={handleEmailSubmit} className="space-y-5">
+            {isRegister && !showSmsStep && (
+              <div>
+                <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('name')}</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
+                  placeholder={t('name')}
+                  required
+                />
+              </div>
+            )}
+            {showSmsStep && (
+              <div>
+                <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Код из СМС</label>
+                <input
+                  type="text"
+                  value={smsCode}
+                  onChange={(e) => setSmsCode(e.target.value)}
+                  className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
+                  placeholder="1234"
+                  required
+                />
+                <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Введите код 1234 для подтверждения</p>
+              </div>
+            )}
+            {!showSmsStep && (
+              <>
+                <div>
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('phone')}</label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
+                    placeholder="+998 90 123 45 67"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('password')}</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {error && <p className="text-red-500 text-xs text-center font-medium bg-red-50 py-2 rounded-lg">{error}</p>}
+
+            <button
+              type="submit"
+              className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4"
+            >
+              {showSmsStep ? 'Подтвердить СМС' : isRegister ? t('createAccount') : t('signIn')}
+            </button>
+          </form>
+        )}
+
+        {/* ========== PHONE SMS MODE ========== */}
+        {authMode === 'phone' && (
+          <>
+            {!phoneConfirmation ? (
+              <form onSubmit={handlePhoneSendCode} className="space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Номер телефона</label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
+                    placeholder="+998 90 123 45 67"
+                    required
+                  />
+                  <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Укажите номер с кодом страны (+998...)</p>
+                </div>
+
+                {error && <p className="text-red-500 text-xs text-center font-medium bg-red-50 py-2 rounded-lg">{error}</p>}
+
+                <button
+                  type="submit"
+                  disabled={phoneAuthLoading}
+                  className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4 disabled:opacity-50"
+                >
+                  {phoneAuthLoading ? 'Отправка...' : 'Отправить SMS-код'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handlePhoneVerifyCode} className="space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Код из SMS</label>
+                  <input
+                    type="text"
+                    value={smsCode}
+                    onChange={(e) => setSmsCode(e.target.value)}
+                    className="w-full p-4 rounded-2xl bg-uzum-bg border-none outline-none focus:ring-2 focus:ring-uzum-primary/20 transition-all font-medium text-sm"
+                    placeholder="123456"
+                    required
+                  />
+                  <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Введите 6-значный код из SMS</p>
+                </div>
+
+                {error && <p className="text-red-500 text-xs text-center font-medium bg-red-50 py-2 rounded-lg">{error}</p>}
+
+                <button
+                  type="submit"
+                  className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4"
+                >
+                  Подтвердить
+                </button>
+              </form>
+            )}
+          </>
+        )}
+
+        {/* Переключение Вход / Регистрация (только для email-режима) */}
+        {authMode === 'email' && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => { setIsRegister(!isRegister); setShowSmsStep(false); setError(''); }}
+              className="text-uzum-primary text-sm font-bold hover:opacity-80 transition-all"
+            >
+              {isRegister ? t('alreadyHaveAccount') : t('dontHaveAccount')}
+            </button>
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-between gap-4">
           <div className="h-[1px] bg-[#e2e5eb] flex-1"></div>
           <span className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">Или войти через</span>
           <div className="h-[1px] bg-[#e2e5eb] flex-1"></div>
@@ -150,15 +275,6 @@ export const Login: React.FC = () => {
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
           <span className="text-sm font-bold text-uzum-muted">Google</span>
         </button>
-
-        <div className="mt-8 text-center">
-          <button
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-uzum-primary text-sm font-bold hover:opacity-80 transition-all"
-          >
-            {isRegister ? t('alreadyHaveAccount') : t('dontHaveAccount')}
-          </button>
-        </div>
       </motion.div>
     </div>
   );

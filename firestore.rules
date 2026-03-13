@@ -1,134 +1,76 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Fields: name, phone, role, carType, carPhoto, photo, lat, lng, lastSeen, agent_id
-    //
-    // Collection: categories
-    // Fields: name
-    //
-    // Collection: products
-    // Fields: name, price, discountPrice, categoryId, image, videoUrl, description, stock
-    //
-    // Collection: banners
-    // Fields: title, imageUrl, videoUrl, link, isActive
-    //
-    // Collection: orders
-    // Fields: clientId, agentId, courierId, totalPrice, paymentType, paymentStatus, collectionStatus, orderStatus, location, latitude, longitude, deliveryPhoto, invoicePhoto, createdAt
-    //
-    // Collection: debts
-    // Fields: clientId, orderId, amount, dueDate, status, createdAt
-    //
-    // Collection: salaries
-    // Fields: userId, amount, type, period, status, createdAt
-    //
-    // Collection: settings
-    // Fields: value
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
+    
+    // Функция проверки авторизации
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         request.auth.token.email == "jorikgafurov003@gmail.com");
-    }
-
+    // Функция проверки владения документом (по ID документа или полю uid)
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.uid;
-    }
-
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.phone is string &&
-             data.role in ['admin', 'agent', 'courier', 'client'];
-    }
-
-    function isValidProduct(data) {
-      return data.name is string && data.name.size() > 0 &&
-             data.price is number && data.price >= 0;
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
-
+    // Правила для коллекции пользователей: каждый видит и редактирует только себя
     match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
-      allow delete: if isAdmin();
+      allow read, write: if isOwner(userId);
     }
 
+    // Заказы: доступ только если пользователь является клиентом, агентом или курьером в этом заказе
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.clientId || 
+        request.auth.uid == resource.data.agentId || 
+        request.auth.uid == resource.data.courierId
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.agentId || 
+        request.auth.uid == resource.data.courierId
+      );
+    }
+
+    // Долги: только владелец долга может видеть его
+    match /debts/{debtId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.clientId;
+      allow write: if false; // Только системные процессы или админ (через бэкенд) могут менять долги
+    }
+
+    // Зарплаты: только владелец видит свою зарплату
+    match /salaries/{salaryId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow write: if false;
+    }
+
+    // Настройки кофигурации зарплаты: только владелец
+    match /user_salary_config/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    // Продукты, категории и баннеры: читать могут все авторизованные, писать — никто (через Firestore напрямую)
     match /categories/{categoryId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     match /products/{productId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     match /banners/{bannerId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    match /orders/{orderId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.agentId || request.auth.uid == resource.data.courierId || isAdmin());
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (request.auth.uid == resource.data.agentId || request.auth.uid == resource.data.courierId || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    match /debts/{debtId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.clientId || isAdmin());
-      allow write: if isAdmin();
-    }
-
-    match /salaries/{salaryId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     match /settings/{settingKey} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
-    match /user_salary_config/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
-      allow write: if isAdmin();
-    }
-
-    // Default deny
+    // Запрет доступа ко всем остальным данным по умолчанию
     match /{path=**} {
       allow read, write: if false;
     }

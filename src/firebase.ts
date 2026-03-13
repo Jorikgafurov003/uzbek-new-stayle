@@ -1,23 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { getFirestore } from 'firebase/firestore';
+
+// Firebase конфигурация проекта uzbechka-794ad
+const firebaseConfig = {
+  apiKey: "AIzaSyAiAGck0caP4ERcwObJ8WSPYAlPkJS-3kE",
+  authDomain: "uzbechka-794ad.firebaseapp.com",
+  projectId: "uzbechka-794ad",
+  storageBucket: "uzbechka-794ad.firebasestorage.app",
+  messagingSenderId: "785275821102",
+  appId: "1:785275821102:web:2df9ab569951bc07e253bf"
+};
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-
-// Validate Connection to Firestore
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
-    }
-    // Skip logging for other errors, as this is simply a connection test.
-  }
-}
-testConnection();
+export const db = getFirestore(app);
 
 export default app;

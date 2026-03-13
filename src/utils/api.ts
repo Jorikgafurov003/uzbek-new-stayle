@@ -2,14 +2,21 @@
 const getApiBaseUrl = () => {
   if (typeof window === 'undefined') return '';
 
+  // Use environment variable if provided (Vite)
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+
   // If we are in a Capacitor environment (mobile app)
   if (window.location.protocol === 'capacitor:') {
-    // Try to get from meta tag or just use a default
-    return window.location.origin.replace('capacitor://', 'https://'); 
+    // If you have a specific production server, put it here:
+    // return 'https://uzbechka-794ad.onrender.com';
+    
+    // Fallback: if we don't have VITE_API_URL, try to deduce from current host 
+    // but capacitor://localhost won't work for remote server.
+    // For now, return empty or a default if known.
+    return ''; 
   }
   
-  // For web, relative paths are most reliable and avoid CORS/origin issues
-  // The browser will automatically use the current origin.
   return '';
 };
 

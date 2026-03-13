@@ -50,6 +50,7 @@ const initDb = async () => {
         agent_id INTEGER,
         rating DOUBLE PRECISION DEFAULT 0,
         rating_count INTEGER DEFAULT 0,
+        firebase_uid TEXT UNIQUE,
         FOREIGN KEY (agent_id) REFERENCES users(id)
       );
 
@@ -277,6 +278,15 @@ const initDb = async () => {
         FOREIGN KEY ("clientId") REFERENCES users(id),
         FOREIGN KEY ("agentId") REFERENCES users(id)
       );
+      );
+
+      -- Migration for existing database
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'firebase_uid') THEN
+          ALTER TABLE users ADD COLUMN firebase_uid TEXT UNIQUE;
+        END IF;
+      END $$;
     `);
 
     // Indices

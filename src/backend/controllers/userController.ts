@@ -29,3 +29,12 @@ export const deleteUser = async (req: any, res: any) => {
   await db.prepare("DELETE FROM users WHERE id = ?").run(req.params.id);
   res.json({ success: true });
 };
+
+export const getUserByFirebaseId = async (req: any, res: any) => {
+  const user = await db.prepare("SELECT * FROM users WHERE firebase_uid = ?").get(req.params.uid);
+  if (user) {
+    res.json(user);
+  } else {
+    res.status(404).json({ error: "User not found" });
+  }
+};
