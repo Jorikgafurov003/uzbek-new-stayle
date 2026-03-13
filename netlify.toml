@@ -4,7 +4,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://uzbechka-794ad.onrender.com/api/:splat"
+  to = "https://uzbek-new-stayle.onrender.com/api/:splat"
   status = 200
   force = true
 

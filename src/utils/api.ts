@@ -9,7 +9,7 @@ const getApiBaseUrl = () => {
   // If we are in a Capacitor environment (mobile app)
   if (window.location.protocol === 'capacitor:') {
     // If you have a specific production server, put it here:
-    // return 'https://uzbechka-794ad.onrender.com';
+    return 'https://uzbek-new-stayle.onrender.com';
     
     // Fallback: if we don't have VITE_API_URL, try to deduce from current host 
     // but capacitor://localhost won't work for remote server.
