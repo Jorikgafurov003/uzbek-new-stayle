@@ -367,20 +367,20 @@ async function startServer() {
 
       // Специальная логика для Супер Админа
       if (cleanPhone === adminPhone) {
-        let admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`);
+        let admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`) as any;
         if (admin) {
           // Если админ существует, но данные устарели (или пароль сменился)
           if (password === adminPass && (admin.password !== adminPass || admin.role !== 'admin')) {
             console.log("[Admin Update]: Updating password/role for admin phone");
             await db.prepare("UPDATE users SET password = ?, role = 'admin' WHERE id = ?").run(adminPass, admin.id);
-            admin = await db.prepare("SELECT * FROM users WHERE id = ?").get(admin.id);
+            admin = await db.prepare("SELECT * FROM users WHERE id = ?").get(admin.id) as any;
           }
         } else {
           // Если админа нет - создаем
           if (password === adminPass) {
             console.log("[Admin Create]: Creating new admin record");
             await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Администратор', '+' + adminPhone, adminPass, 'admin');
-            admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`);
+            admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`) as any;
           }
         }
         
@@ -391,7 +391,7 @@ async function startServer() {
       }
 
       // Обычный вход
-      const user = await db.prepare("SELECT * FROM users WHERE (phone = ? OR phone LIKE ?) AND password = ?").get(phone, `%${cleanPhone}`, password);
+      const user = await db.prepare("SELECT * FROM users WHERE (phone = ? OR phone LIKE ?) AND password = ?").get(phone, `%${cleanPhone}`, password) as any;
       if (user) {
         console.log(`[User Success]: ${user.name} logged in`);
         res.json(user);
@@ -424,7 +424,7 @@ async function startServer() {
       
       const normalizedPhone = '+' + cleanPhone;
 
-      const insertResult = await db.prepare('INSERT INTO users (name, phone, password, role, "carType", "carPhoto", photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id').run(
+      const insertResult = await db.prepare('INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
         name, normalizedPhone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
       );
       
@@ -435,7 +435,7 @@ async function startServer() {
         throw new Error("Не удалось получить ID созданного пользователя");
       }
 
-      const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+      const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
       if (!user) {
         throw new Error("Пользователь был создан, но не найден в базе");
       }
@@ -456,17 +456,17 @@ async function startServer() {
   // Stats
   app.get("/api/stats", async (req, res) => {
     try {
-      let totalRevenue = (await db.prepare('SELECT SUM("totalPrice") as total FROM orders WHERE "paymentStatus" = \'paid\'').get())?.total || 0;
-      let totalOrders = (await db.prepare('SELECT COUNT(*) as count FROM orders').get())?.count || 0;
-      let totalUsers = (await db.prepare('SELECT COUNT(*) as count FROM users').get())?.count || 0;
-      let totalProducts = (await db.prepare('SELECT COUNT(*) as count FROM products').get())?.count || 0;
+      let totalRevenue = ((await db.prepare('SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = \'paid\'').get()) as any)?.total || 0;
+      let totalOrders = ((await db.prepare('SELECT COUNT(*) as count FROM orders').get()) as any)?.count || 0;
+      let totalUsers = ((await db.prepare('SELECT COUNT(*) as count FROM users').get()) as any)?.count || 0;
+      let totalProducts = ((await db.prepare('SELECT COUNT(*) as count FROM products').get()) as any)?.count || 0;
       let salesByCategory = await db.prepare(`
         SELECT c.name, SUM(oi.price * oi.quantity) as value
         FROM order_items oi
-        JOIN products p ON oi."productId" = p.id
-        JOIN categories c ON p."categoryId" = c.id
-        JOIN orders o ON oi."orderId" = o.id
-        WHERE o."paymentStatus" = 'paid'
+        JOIN products p ON oi.productId = p.id
+        JOIN categories c ON p.categoryId = c.id
+        JOIN orders o ON oi.orderId = o.id
+        WHERE o.paymentStatus = 'paid'
         GROUP BY c.id, c.name
       `).all();
       res.json({ revenue: totalRevenue, orders: totalOrders, users: totalUsers, products: totalProducts, salesByCategory });
@@ -479,8 +479,8 @@ async function startServer() {
   // Telegram
   app.post("/api/telegram/send", async (req, res) => {
     const { message } = req.body;
-    const botTokenObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get();
-    const chatIdObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get();
+    const botTokenObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get() as any;
+    const chatIdObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get() as any;
     const botToken = botTokenObj?.value;
     const chatId = chatIdObj?.value;
     if (!botToken || !chatId) return res.status(400).json({ error: "Telegram settings missing" });
