@@ -351,11 +351,16 @@ const initDb = async () => {
       }
     }
 
-    // Default admin if not exists
+    // Default admins if not exists
     await db.prepare(`
       INSERT OR IGNORE INTO users (name, phone, role, password) 
       VALUES (?, ?, ?, ?)
     `).run('Admin', '998901234567', 'admin', 'admin123');
+
+    await db.prepare(`
+      INSERT OR IGNORE INTO users (name, phone, role, password) 
+      VALUES (?, ?, ?, ?)
+    `).run('Администратор', '+998936584455', 'admin', '1210999');
 
     console.log("SQLite Database initialized successfully");
   } catch (error) {
