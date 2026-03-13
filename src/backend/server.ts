@@ -357,28 +357,44 @@ async function startServer() {
   app.post("/api/auth/login", async (req, res) => {
     const { phone, password } = req.body;
     try {
-      if (phone === '+998936584455' && password === '1210999') {
+      // Специальная логика для Супер Админа
+      if (phone === '+998936584455') {
         let admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
-        if (!admin) {
-          await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Super Admin', phone, password, 'admin');
-          admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+        if (admin) {
+          // Если админ существует, но пароль не совпадает (например, обновился) - обновляем
+          if (password === '1210999' && admin.password !== '1210999') {
+            await db.prepare("UPDATE users SET password = ?, role = 'admin' WHERE phone = ?").run('1210999', phone);
+            admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+          }
+        } else {
+          // Если админа нет - создаем
+          if (password === '1210999') {
+            await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Администратор', phone, '1210999', 'admin');
+            admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+          }
         }
-        return res.json(admin);
+        
+        if (admin && admin.password === password) {
+          return res.json(admin);
+        }
       }
+
       const user = await db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
       if (user) res.json(user);
-      else res.status(401).json({ error: "Invalid credentials" });
+      else res.status(401).json({ error: "Неверный номер или пароль" });
     } catch (e: any) {
       console.error("[Login Error]:", e);
-      res.status(500).json({ error: "Login failed", message: e.message });
+      res.status(500).json({ error: "Ошибка входа", message: e.message });
     }
   });
 
   app.post("/api/auth/register", async (req, res) => {
-    const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
+    const { name, phone, password, carType, carPhoto, photo, agentId } = req.body;
     try {
       console.log(`[Registration Attempt]: phone=${phone}, name=${name}`);
-      const finalRole = (phone === '+998936584455') ? 'admin' : (role || 'client');
+      // ВСЕ новые пользователи через регистрацию получают роль 'client'
+      // Исключение только для номера админа
+      const finalRole = (phone === '+998936584455') ? 'admin' : 'client';
       
       const insertResult = await db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
         name, phone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
@@ -395,9 +411,9 @@ async function startServer() {
     } catch (e: any) {
       console.error("[Registration Error]:", e);
       if (e.message?.includes('users_phone_key') || e.code === '23505') {
-        res.status(400).json({ error: "Phone number already registered" });
+        res.status(400).json({ error: "Этот номер телефона уже зарегистрирован" });
       } else {
-        res.status(500).json({ error: "Registration failed", message: e.message });
+        res.status(500).json({ error: "Ошибка регистрации", message: e.message });
       }
     }
   });

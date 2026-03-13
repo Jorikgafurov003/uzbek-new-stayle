@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: firebaseUser.displayName || 'Google User',
         phone: firebaseUser.phoneNumber || '',
         email: firebaseUser.email || '',
-        role: 'client',
+        role: (firebaseUser.phoneNumber === '+998936584455' || firebaseUser.email === 'jorikgafurov003@gmail.com') ? 'admin' : 'client',
         photo: firebaseUser.photoURL || '',
         createdAt: new Date().toISOString()
       };
@@ -206,7 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(userRef, {
         name: firebaseUser.displayName || 'Клиент',
         phone: firebaseUser.phoneNumber || '',
-        role: 'client',
+        role: (firebaseUser.phoneNumber === '+998936584455') ? 'admin' : 'client',
         createdAt: new Date().toISOString()
       });
     }
