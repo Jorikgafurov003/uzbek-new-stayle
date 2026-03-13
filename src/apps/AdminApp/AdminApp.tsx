@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import {
   LayoutDashboard, Package, ShoppingBag, Users, LogOut,
-  TrendingUp, CheckCircle, Check, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote, Calculator, Store, Archive, RotateCcw, Clock, Info, Wallet, ChevronRight, Star
+  TrendingUp, CheckCircle, Check, Truck, Plus, Trash2, Edit, X, Search, Image as ImageIcon, Play, User, MapPin, Sparkles, Upload, Settings as SettingsIcon, Volume2, List, CreditCard, Navigation, Bot, AlertCircle, Send, MessageSquare, Banknote, Calculator, Store, Archive, RotateCcw, Clock, Info, Wallet, ChevronRight, Star, Zap
 } from 'lucide-react';
 import { Debt } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -433,8 +433,8 @@ export const AdminApp: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 { label: t('revenue'), value: (stats?.revenue || 0).toLocaleString(), icon: <TrendingUp size={20} />, color: 'text-cyan-500', bg: theme === 'futuristic' ? 'bg-cyan-500/10' : 'bg-cyan-50', suffix: ' UZS' },
-                { label: t('orders'), value: stats.orders, icon: <ShoppingBag size={20} />, color: 'text-blue-500', bg: theme === 'futuristic' ? 'bg-blue-500/10' : 'bg-blue-50' },
-                { label: t('users'), value: stats.users, icon: <Users size={20} />, color: 'text-purple-500', bg: theme === 'futuristic' ? 'bg-purple-500/10' : 'bg-purple-50' },
+                { label: t('orders'), value: stats?.orders || 0, icon: <ShoppingBag size={20} />, color: 'text-blue-500', bg: theme === 'futuristic' ? 'bg-blue-500/10' : 'bg-blue-50' },
+                { label: t('users'), value: stats?.users || 0, icon: <Users size={20} />, color: 'text-purple-500', bg: theme === 'futuristic' ? 'bg-purple-500/10' : 'bg-purple-50' },
                 { label: t('products'), value: products.length, icon: <Package size={20} />, color: 'text-orange-500', bg: theme === 'futuristic' ? 'bg-orange-500/10' : 'bg-orange-50' },
                 { label: t('debts'), value: debts.filter(d => d.status === 'pending').length, icon: <CreditCard size={20} />, color: 'text-red-500', bg: theme === 'futuristic' ? 'bg-red-500/10' : 'bg-red-50' },
                 { label: 'System', value: healthLogs.some(l => l.status === 'error') ? 'Warning' : 'Healthy', icon: <CheckCircle size={20} />, color: healthLogs.some(l => l.status === 'error') ? 'text-red-500' : 'text-green-500', bg: healthLogs.some(l => l.status === 'error') ? (theme === 'futuristic' ? 'bg-red-500/10' : 'bg-red-50') : (theme === 'futuristic' ? 'bg-green-500/10' : 'bg-green-50') },
@@ -538,13 +538,13 @@ export const AdminApp: React.FC = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={stats.salesByCategory}
+                          data={stats?.salesByCategory || []}
                           innerRadius={45}
                           outerRadius={65}
                           paddingAngle={6}
                           dataKey="value"
                         >
-                          {stats.salesByCategory.map((entry: any, index: number) => (
+                          {(stats?.salesByCategory || []).map((entry: any, index: number) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
@@ -562,11 +562,11 @@ export const AdminApp: React.FC = () => {
                       <span className={`text-[10px] font-semibold uppercase ${theme === 'futuristic' ? 'text-white/40' : 'text-gray-400'
                         }`}>Всего</span>
                       <span className={`text-xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-gray-900'
-                        }`}>{stats.salesByCategory.length}</span>
+                        }`}>{stats?.salesByCategory?.length || 0}</span>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
-                    {stats.salesByCategory.slice(0, 4).map((cat: any, i: number) => (
+                    {(stats?.salesByCategory || []).slice(0, 4).map((cat: any, i: number) => (
                       <div key={i} className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                         <span className={`text-[11px] font-medium truncate ${theme === 'futuristic' ? 'text-white/60' : 'text-gray-600'
@@ -1661,6 +1661,7 @@ export const AdminApp: React.FC = () => {
                 const updates: any = Object.fromEntries(formData.entries());
                 // Handle checkbox
                 updates.voice_enabled = formData.get('voice_enabled') === 'on' ? 'true' : 'false';
+                updates.turbo_mode = formData.get('turbo_mode') === 'on' ? 'true' : 'false';
                 handleConfirm(async () => {
                   await updateSettings(updates);
                   speak("Настройки успешно сохранены");
@@ -1722,6 +1723,25 @@ export const AdminApp: React.FC = () => {
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gold"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-stone-50 rounded-2xl border border-stone-100">
+                  <div className="p-2 bg-cyan-100 text-cyan-600 rounded-xl">
+                    <Zap size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-stone-800">Турбо Режим</h4>
+                    <p className={[10, 'px'].join('') + " text-stone-400 uppercase font-black tracking-widest"}>Ускоренное обновление данных</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="turbo_mode"
+                      defaultChecked={settings.turbo_mode === 'true'}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
                   </label>
                 </div>
 

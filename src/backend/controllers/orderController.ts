@@ -3,17 +3,17 @@ import db from '../models/db.js';
 export const getOrders = async (req: any, res: any) => {
   try {
     const orders = await db.prepare(`
-      SELECT o.*, u.name as clientName, u.phone as clientPhone, a.name as agentName, cr.name as courierName
+      SELECT o.*, u.name as "clientName", u.phone as "clientPhone", a.name as "agentName", cr.name as "courierName"
       FROM orders o
-      JOIN users u ON o.clientId = u.id
-      LEFT JOIN users a ON o.agentId = a.id
-      LEFT JOIN users cr ON o.courierId = cr.id
-      ORDER BY o.createdAt DESC
+      JOIN users u ON o."clientId" = u.id
+      LEFT JOIN users a ON o."agentId" = a.id
+      LEFT JOIN users cr ON o."courierId" = cr.id
+      ORDER BY o."createdAt" DESC
     `).all();
     
     const formattedOrders = await Promise.all(orders.map(async (o: any) => ({
       ...o,
-      items: await db.prepare("SELECT oi.*, p.name as productName FROM order_items oi JOIN products p ON oi.productId = p.id WHERE oi.orderId = ?").all(o.id)
+      items: await db.prepare('SELECT oi.*, p.name as "productName" FROM order_items oi JOIN products p ON oi."productId" = p.id WHERE oi."orderId" = ?').all(o.id)
     })));
     res.json(formattedOrders);
   } catch (error: any) {
@@ -25,7 +25,7 @@ export const createOrder = async (req: any, res: any) => {
   const { clientId, agentId, items, totalPrice, paymentType, location, latitude, longitude, dueDate } = req.body;
   try {
     await db.transaction(async () => {
-      const info = await db.prepare("INSERT INTO orders (clientId, agentId, totalPrice, paymentType, location, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
+      const info = await db.prepare('INSERT INTO orders ("clientId", "agentId", "totalPrice", "paymentType", location, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id').run(
         clientId, agentId || null, totalPrice, paymentType, location, latitude || null, longitude || null
       );
       const orderId = info.lastInsertRowid;
@@ -38,7 +38,7 @@ export const createOrder = async (req: any, res: any) => {
       `).get(latitude || 39.7747, latitude || 39.7747, longitude || 64.4286, longitude || 64.4286);
 
       if (nearestCourier) {
-        await db.prepare("UPDATE orders SET courierId = ?, orderStatus = 'confirmed' WHERE id = ?").run(nearestCourier.courier_id, orderId);
+        await db.prepare('UPDATE orders SET "courierId" = ?, "orderStatus" = \'confirmed\' WHERE id = ?').run(nearestCourier.courier_id, orderId);
         const courier = await db.prepare("SELECT phone FROM users WHERE id = ?").get(nearestCourier.courier_id);
         if (courier) {
           console.log(`[SMS] To ${courier.phone}: Вам назначен новый заказ #${orderId}. Пожалуйста, заберите его.`);
@@ -64,13 +64,13 @@ export const createOrder = async (req: any, res: any) => {
 
       for (const item of items) {
         const productId = item.id || item.productId;
-        await db.prepare("INSERT INTO order_items (orderId, productId, quantity, price) VALUES (?, ?, ?, ?)").run(orderId, productId, item.quantity, item.price);
+        await db.prepare('INSERT INTO order_items ("orderId", "productId", quantity, price) VALUES (?, ?, ?, ?)').run(orderId, productId, item.quantity, item.price);
         await db.prepare("UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?").run(item.quantity, productId);
       }
 
       if (paymentType === 'debt') {
         await db.prepare(`
-          INSERT INTO debts (clientId, orderId, amount, dueDate, status) 
+          INSERT INTO debts ("clientId", "orderId", amount, "dueDate", status) 
           VALUES (?, ?, ?, ?, 'pending')
         `).run(clientId, orderId, totalPrice, dueDate || null);
       }
@@ -94,8 +94,8 @@ export const updateOrder = async (req: any, res: any) => {
   try {
     // Avoid running if no keys
     if (keys.length > 0) {
-      // In PostgreSQL the id would be $N where N = keys.length + 1
-      const query = `UPDATE orders SET ${setString.replace(/\$\d+/g, '?')} WHERE id = ?`;
+      const setString = keys.map((k, i) => `"${k}" = ?`).join(", ");
+      const query = `UPDATE orders SET ${setString} WHERE id = ?`;
       await db.prepare(query).run(...values, req.params.id);
     }
 
@@ -131,15 +131,15 @@ export const updateOrder = async (req: any, res: any) => {
 export const deleteOrder = async (req: any, res: any) => {
   try {
     await db.transaction(async () => {
-      const order = await db.prepare("SELECT orderStatus FROM orders WHERE id = ?").get(req.params.id);
+      const order = await db.prepare('SELECT "orderStatus" FROM orders WHERE id = ?').get(req.params.id);
       if (order && order.orderStatus !== 'delivered') {
-        const items = await db.prepare("SELECT productId, quantity FROM order_items WHERE orderId = ?").all(req.params.id);
+        const items = await db.prepare('SELECT "productId", quantity FROM order_items WHERE "orderId" = ?').all(req.params.id);
         for (const item of items) {
           await db.prepare("UPDATE products SET stock = stock + ? WHERE id = ?").run(item.quantity, item.productId);
         }
       }
-      await db.prepare("DELETE FROM order_items WHERE orderId = ?").run(req.params.id);
-      await db.prepare("DELETE FROM debts WHERE orderId = ?").run(req.params.id);
+      await db.prepare('DELETE FROM order_items WHERE "orderId" = ?').run(req.params.id);
+      await db.prepare('DELETE FROM debts WHERE "orderId" = ?').run(req.params.id);
       await db.prepare("DELETE FROM orders WHERE id = ?").run(req.params.id);
     });
     res.json({ success: true });
@@ -150,6 +150,6 @@ export const deleteOrder = async (req: any, res: any) => {
 
 export const uploadInvoice = async (req: any, res: any) => {
   const imageUrl = `/uploads/proofs/${req.file?.filename}`;
-  await db.prepare("UPDATE orders SET invoicePhoto = ? WHERE id = ?").run(imageUrl, req.params.id);
+  await db.prepare('UPDATE orders SET "invoicePhoto" = ? WHERE id = ?').run(imageUrl, req.params.id);
   res.json({ success: true, imageUrl });
 };

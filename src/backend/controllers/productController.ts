@@ -4,7 +4,7 @@ export const getProducts = async (req: any, res: any) => {
   const products = await db.prepare("SELECT * FROM products").all();
   const productsWithImages = await Promise.all(products.map(async (p: any) => ({
     ...p,
-    images: (await db.prepare("SELECT imageUrl FROM product_images WHERE productId = ?").all(p.id)).map((img: any) => img.imageUrl)
+    images: (await db.prepare('SELECT "imageUrl" FROM product_images WHERE "productId" = ?').all(p.id)).map((img: any) => img.imageUrl)
   })));
   res.json(productsWithImages);
 };
@@ -14,17 +14,17 @@ export const createProduct = async (req: any, res: any) => {
   try {
     let productId;
     await db.transaction(async () => {
-      const info = await db.prepare("INSERT INTO products (name, price, costPrice, discountPrice, categoryId, image, videoUrl, description, stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
+      const info = await db.prepare('INSERT INTO products (name, price, "costPrice", "discountPrice", "categoryId", image, "videoUrl", description, stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id').run(
         name, price, costPrice || 0, discountPrice || null, categoryId || null, image || null, videoUrl || null, description || null, stock || 0
       );
       productId = info.lastInsertRowid;
 
       if (images && Array.isArray(images)) {
         for (const img of images) {
-          await db.prepare("INSERT INTO product_images (productId, imageUrl) VALUES (?, ?)").run(productId, img);
+          await db.prepare('INSERT INTO product_images ("productId", "imageUrl") VALUES (?, ?)').run(productId, img);
         }
       } else if (image) {
-        await db.prepare("INSERT INTO product_images (productId, imageUrl) VALUES (?, ?)").run(productId, image);
+        await db.prepare('INSERT INTO product_images ("productId", "imageUrl") VALUES (?, ?)').run(productId, image);
       }
     });
     res.json({ id: productId });
@@ -42,14 +42,15 @@ export const updateProduct = async (req: any, res: any) => {
   try {
     await db.transaction(async () => {
       if (keys.length > 0) {
-        const query = `UPDATE products SET ${setString.replace(/\$\d+/g, '?')} WHERE id = ?`;
+        const setString = keys.map((k, i) => `"${k}" = ?`).join(", ");
+        const query = `UPDATE products SET ${setString} WHERE id = ?`;
         await db.prepare(query).run(...values, req.params.id);
       }
 
       if (images && Array.isArray(images)) {
-        await db.prepare("DELETE FROM product_images WHERE productId = ?").run(req.params.id);
+        await db.prepare('DELETE FROM product_images WHERE "productId" = ?').run(req.params.id);
         for (const img of images) {
-          await db.prepare("INSERT INTO product_images (productId, imageUrl) VALUES (?, ?)").run(req.params.id, img);
+          await db.prepare('INSERT INTO product_images ("productId", "imageUrl") VALUES (?, ?)').run(req.params.id, img);
         }
       }
     });

@@ -42,33 +42,33 @@ export const getTopStats = async (req: any, res: any) => {
     const topAgent = await db.prepare(`
       SELECT u.id, u.name, u.photo, COUNT(o.id) as count
       FROM orders o
-      JOIN users u ON o.agentId = u.id
-      WHERE o.createdAt >= ${monthStart}
+      JOIN users u ON o."agentId" = u.id
+      WHERE o."createdAt" >= ${monthStart}
       GROUP BY u.id ORDER BY count DESC LIMIT 1
     `).get();
 
     const topCourier = await db.prepare(`
       SELECT u.id, u.name, u.photo, COUNT(o.id) as count
       FROM orders o
-      JOIN users u ON o.courierId = u.id
-      WHERE o.orderStatus = 'delivered' AND o.createdAt >= ${monthStart}
+      JOIN users u ON o."courierId" = u.id
+      WHERE o."orderStatus" = 'delivered' AND o."createdAt" >= ${monthStart}
       GROUP BY u.id ORDER BY count DESC LIMIT 1
     `).get();
 
     const topClient = await db.prepare(`
       SELECT u.id, u.name, u.photo, COUNT(o.id) as count
       FROM orders o
-      JOIN users u ON o.clientId = u.id
-      WHERE o.createdAt >= ${monthStart}
+      JOIN users u ON o."clientId" = u.id
+      WHERE o."createdAt" >= ${monthStart}
       GROUP BY u.id ORDER BY count DESC LIMIT 1
     `).get();
 
     const topSeller = await db.prepare(`
       SELECT p.id, p.name, p.image, SUM(oi.quantity) as count
       FROM order_items oi
-      JOIN products p ON oi.productId = p.id
-      JOIN orders o ON oi.orderId = o.id
-      WHERE o.createdAt >= ${monthStart}
+      JOIN products p ON oi."productId" = p.id
+      JOIN orders o ON oi."orderId" = o.id
+      WHERE o."createdAt" >= ${monthStart}
       GROUP BY p.id ORDER BY count DESC LIMIT 1
     `).get();
 
@@ -81,19 +81,19 @@ export const getTopStats = async (req: any, res: any) => {
 export const getSalaryReport = async (req: any, res: any) => {
   const report = await db.prepare(`
     SELECT 
-      u.id as userId,
-      u.name as userName, 
-      u.photo as userPhoto,
+      u.id as "userId",
+      u.name as "userName", 
+      u.photo as "userPhoto",
       u.role,
-      sc.baseSalary,
-      sc.commissionPercent as salesPercentage,
-      COALESCE(SUM(o.totalPrice), 0) as salesAmount,
-      (COALESCE(SUM(o.totalPrice), 0) * COALESCE(sc.commissionPercent, 0) / 100) as commissionEarned
+      sc."baseSalary",
+      sc."commissionPercent" as "salesPercentage",
+      COALESCE(SUM(o."totalPrice"), 0) as "salesAmount",
+      (COALESCE(SUM(o."totalPrice"), 0) * COALESCE(sc."commissionPercent", 0) / 100) as "commissionEarned"
     FROM users u
-    LEFT JOIN user_salary_config sc ON u.id = sc.userId
-    LEFT JOIN orders o ON u.id = o.agentId AND o.paymentStatus = 'paid' AND o.createdAt >= CURRENT_DATE - INTERVAL '1 month'
+    LEFT JOIN user_salary_config sc ON u.id = sc."userId"
+    LEFT JOIN orders o ON u.id = o."agentId" AND o."paymentStatus" = 'paid' AND o."createdAt" >= CURRENT_DATE - INTERVAL '1 month'
     WHERE u.role IN ('agent', 'courier')
-    GROUP BY u.id, sc.baseSalary, sc.commissionPercent
+    GROUP BY u.id, sc."baseSalary", sc."commissionPercent"
   `).all();
   res.json(report);
 };
@@ -103,9 +103,9 @@ export const getAccounting = async (req: any, res: any) => {
     // Consolidated Query for Summary
     const summaryQuery = `
       SELECT 
-        (SELECT SUM(totalPrice) FROM orders WHERE paymentStatus = 'paid') as "totalIncome",
-        (SELECT SUM(totalPrice) FROM orders WHERE paymentStatus = 'paid' AND paymentType = 'cash') as "cashIncome",
-        (SELECT SUM(totalPrice) FROM orders WHERE paymentStatus = 'paid' AND paymentType = 'card') as "cardIncome",
+        (SELECT SUM("totalPrice") FROM orders WHERE "paymentStatus" = 'paid') as "totalIncome",
+        (SELECT SUM("totalPrice") FROM orders WHERE "paymentStatus" = 'paid' AND "paymentType" = 'cash') as "cashIncome",
+        (SELECT SUM("totalPrice") FROM orders WHERE "paymentStatus" = 'paid' AND "paymentType" = 'card') as "cardIncome",
         (SELECT SUM(amount) FROM debts WHERE status = 'pending') as "unpaidDebts",
         (SELECT SUM(amount) FROM debts WHERE status = 'paid') as "repaidDebts",
         (SELECT SUM(amount) FROM expenses) as "totalExpenses"

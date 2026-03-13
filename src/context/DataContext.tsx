@@ -183,10 +183,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActivityLogs(prev => [newLog, ...prev]);
     });
 
+    const intervalId = setInterval(() => {
+      refreshData();
+    }, settings.turbo_mode === 'true' ? 10000 : 60000); // 10s for turbo, 60s normal
+
     return () => {
       socket.disconnect();
+      clearInterval(intervalId);
     };
-  }, []);
+  }, [user, settings.turbo_mode]);
 
   const setTheme = async (newTheme: 'light' | 'futuristic') => {
     setThemeState(newTheme);
@@ -454,11 +459,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
     });
+    await logActivity('Создание товара', `Добавлен товар: ${product.name}`);
     await refreshData();
   };
 
   const deleteProduct = async (id: number) => {
+    const product = products.find(p => p.id === id);
     await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    await logActivity('Удаление товара', `Удален товар: ${product?.name || id}`);
     await refreshData();
   };
 
@@ -468,6 +476,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
     });
+    await logActivity('Обновление товара', `Обновлен товар: ${product.name}`);
     await refreshData();
   };
 
@@ -517,7 +526,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteUser = async (id: number) => {
+    const userToDelete = users.find(u => u.id === id);
     await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+    await logActivity('Удаление пользователя', `Удален пользователь: ${userToDelete?.name || id} (${userToDelete?.role})`);
     await refreshData();
   };
 
@@ -589,6 +600,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
+    await logActivity('Обновление пользователя', `Обновлен пользователь ID: ${id}`);
     await refreshData();
   };
 
@@ -653,6 +665,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
+    await logActivity('Изменение настроек', `Обновлены настройки: ${Object.keys(updates).join(', ')}`);
     await refreshData();
   };
 

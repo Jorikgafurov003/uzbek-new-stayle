@@ -96,7 +96,7 @@ async function startServer() {
   app.post("/api/banners", async (req, res) => {
     const { title, imageUrl, images, videoUrl, link, isActive } = req.body;
     const imagesJson = images ? JSON.stringify(images) : null;
-    const result = await db.prepare("INSERT INTO banners (title, imageUrl, images, videoUrl, link, isActive) VALUES (?, ?, ?, ?, ?, ?) RETURNING id").run(
+    const result = await db.prepare('INSERT INTO banners (title, "imageUrl", images, "videoUrl", link, "isActive") VALUES (?, ?, ?, ?, ?, ?) RETURNING id').run(
       title, imageUrl, imagesJson, videoUrl || null, link || null, isActive ?? 1
     );
     res.json({ id: result.lastInsertRowid });
@@ -104,7 +104,7 @@ async function startServer() {
   app.put("/api/banners/:id", async (req, res) => {
     const { title, imageUrl, images, videoUrl, link, isActive } = req.body;
     const imagesJson = images ? JSON.stringify(images) : null;
-    await db.prepare("UPDATE banners SET title = ?, imageUrl = ?, images = ?, videoUrl = ?, link = ?, isActive = ? WHERE id = ?").run(
+    await db.prepare('UPDATE banners SET title = ?, "imageUrl" = ?, images = ?, "videoUrl" = ?, link = ?, "isActive" = ? WHERE id = ?').run(
       title, imageUrl, imagesJson, videoUrl || null, link || null, isActive, req.params.id
     );
     res.json({ success: true });
@@ -128,7 +128,7 @@ async function startServer() {
       await db.transaction(async () => {
         for (const [key, value] of Object.entries(updates)) {
             // PostgreSQL specific UPSERT syntax
-            await db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value").run(key, String(value));
+            await db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value').run(key, String(value));
         }
       });
     } else {
@@ -159,15 +159,15 @@ async function startServer() {
   app.get("/api/shops", async (req, res) => {
     try {
       const { archived } = req.query;
-      let query = `SELECT s.*, u.name as clientName, a.name as agentName 
+      let query = `SELECT s.*, u.name as "clientName", a.name as "agentName" 
                    FROM shops s 
-                   LEFT JOIN users u ON s.clientId = u.id
-                   LEFT JOIN users a ON s.agentId = a.id`;
+                   LEFT JOIN users u ON s."clientId" = u.id
+                   LEFT JOIN users a ON s."agentId" = a.id`;
 
       if (archived === 'true') {
-        query += " WHERE s.isArchived = 1";
+        query += ' WHERE s."isArchived" = 1';
       } else if (archived === 'false') {
-        query += " WHERE s.isArchived = 0";
+        query += ' WHERE s."isArchived" = 0';
       }
 
       const shops = await db.prepare(query).all();
@@ -190,7 +190,7 @@ async function startServer() {
 
     try {
       const result = await db.prepare(`
-        INSERT INTO shops (name, address, latitude, longitude, clientId, agentId, isArchived) 
+        INSERT INTO shops (name, address, latitude, longitude, "clientId", "agentId", "isArchived") 
         VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING id
       `).run(name, finalAddress, lat || null, lng || null, clientId, agentId || null);
 
@@ -209,7 +209,7 @@ async function startServer() {
     try {
       await db.prepare(`
         UPDATE shops 
-        SET name = ?, address = ?, latitude = ?, longitude = ?, clientId = ?, agentId = ?
+        SET name = ?, address = ?, latitude = ?, longitude = ?, "clientId" = ?, "agentId" = ?
         WHERE id = ?
       `).run(name, address, lat || null, lng || null, clientId, agentId || null, req.params.id);
       res.json({ success: true });
@@ -221,7 +221,7 @@ async function startServer() {
   app.put("/api/shops/:id/archive", async (req, res) => {
     const { isArchived } = req.body;
     try {
-      await db.prepare("UPDATE shops SET isArchived = ? WHERE id = ?").run(isArchived ? 1 : 0, req.params.id);
+      await db.prepare('UPDATE shops SET "isArchived" = ? WHERE id = ?').run(isArchived ? 1 : 0, req.params.id);
       res.json({ success: true });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -240,7 +240,7 @@ async function startServer() {
   // Activity Logs
   app.get("/api/activity-logs", async (req, res) => {
     try {
-      const logs = await db.prepare("SELECT * FROM activity_logs ORDER BY createdAt DESC LIMIT 100").all();
+      const logs = await db.prepare('SELECT * FROM activity_logs ORDER BY "createdAt" DESC LIMIT 100').all();
       res.json(logs);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -251,7 +251,7 @@ async function startServer() {
     const { userId, userName, userRole, action, details } = req.body;
     try {
       const result = await db.prepare(`
-        INSERT INTO activity_logs (userId, userName, userRole, action, details) 
+        INSERT INTO activity_logs ("userId", "userName", "userRole", action, details) 
         VALUES (?, ?, ?, ?, ?) RETURNING id
       `).run(userId, userName, userRole, action, details || null);
 
@@ -272,10 +272,10 @@ async function startServer() {
       SELECT d.*, 
              u.name as "clientName", 
              u.phone as "clientPhone",
-             (SELECT s.name FROM shops s WHERE s.clientId = d.clientId LIMIT 1) as "shopName"
+             (SELECT s.name FROM shops s WHERE s."clientId" = d."clientId" LIMIT 1) as "shopName"
       FROM debts d 
-      JOIN users u ON d.clientId = u.id 
-      ORDER BY d.createdAt DESC
+      JOIN users u ON d."clientId" = u.id 
+      ORDER BY d."createdAt" DESC
     `;
     res.json(await db.prepare(query).all());
   });
@@ -284,11 +284,11 @@ async function startServer() {
     const { clientId, amount, dueDate } = req.body;
     try {
       const result = await db.prepare(`
-        INSERT INTO debts (clientId, amount, dueDate, status) 
+        INSERT INTO debts ("clientId", amount, "dueDate", status) 
         VALUES (?, ?, ?, 'pending') RETURNING id
       `).run(clientId, amount, dueDate || null);
 
-      const newDebt = await db.prepare("SELECT d.*, u.name as clientName, u.phone as clientPhone FROM debts d JOIN users u ON d.clientId = u.id WHERE d.id = ?").get(result.lastInsertRowid);
+      const newDebt = await db.prepare('SELECT d.*, u.name as "clientName", u.phone as "clientPhone" FROM debts d JOIN users u ON d."clientId" = u.id WHERE d.id = ?').get(result.lastInsertRowid);
       res.json(newDebt);
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -297,7 +297,7 @@ async function startServer() {
 
   app.patch("/api/debts/:id/pay", async (req, res) => {
     const { payerName } = req.body;
-    await db.prepare("UPDATE debts SET status = 'paid', paidAt = CURRENT_TIMESTAMP, payerName = ? WHERE id = ?").run(payerName || null, req.params.id);
+    await db.prepare('UPDATE debts SET status = \'paid\', "paidAt" = CURRENT_TIMESTAMP, "payerName" = ? WHERE id = ?').run(payerName || null, req.params.id);
     res.json({ success: true });
   });
 
@@ -312,12 +312,12 @@ async function startServer() {
       const newAmount = Math.max(0, debt.amount - amountPaid);
 
       if (newAmount === 0) {
-        await db.prepare("UPDATE debts SET status = 'paid', amount = 0, paidAt = CURRENT_TIMESTAMP, payerName = ? WHERE id = ?").run(payerName || null, req.params.id);
+        await db.prepare('UPDATE debts SET status = \'paid\', amount = 0, "paidAt" = CURRENT_TIMESTAMP, "payerName" = ? WHERE id = ?').run(payerName || null, req.params.id);
       } else {
         const currentReason = debt.increaseReason ? debt.increaseReason + ` | ` : '';
         const formattedDate = new Date().toLocaleDateString();
         const partialNote = `Частично оплачено ${amountPaid} (${formattedDate}${payerName ? ` от ${payerName}` : ''})`;
-        await db.prepare("UPDATE debts SET amount = ?, increaseReason = ? WHERE id = ?").run(newAmount, currentReason + partialNote, req.params.id);
+        await db.prepare('UPDATE debts SET amount = ?, "increaseReason" = ? WHERE id = ?').run(newAmount, currentReason + partialNote, req.params.id);
       }
       res.json({ success: true });
     } catch (e: any) {
@@ -327,14 +327,14 @@ async function startServer() {
 
   app.patch("/api/debts/:id/increase", async (req, res) => {
     const { amount, reason } = req.body;
-    await db.prepare("UPDATE debts SET amount = amount + ?, increasedAmount = increasedAmount + ?, increaseReason = ? WHERE id = ?").run(amount, amount, reason, req.params.id);
+    await db.prepare('UPDATE debts SET amount = amount + ?, "increasedAmount" = "increasedAmount" + ?, "increaseReason" = ? WHERE id = ?').run(amount, amount, reason, req.params.id);
     res.json({ success: true });
   });
 
   app.put("/api/debts/:id", async (req, res) => {
     const { amount, dueDate, status, payerName } = req.body;
     try {
-      await db.prepare("UPDATE debts SET amount = ?, dueDate = ?, status = ?, payerName = ? WHERE id = ?").run(
+      await db.prepare('UPDATE debts SET amount = ?, "dueDate" = ?, status = ?, "payerName" = ? WHERE id = ?').run(
         amount, dueDate || null, status, payerName || null, req.params.id
       );
       res.json({ success: true });
@@ -406,23 +406,25 @@ async function startServer() {
   });
 
   app.post("/api/auth/register", async (req, res) => {
-    const { name, phone, password, carType, carPhoto, photo, agentId } = req.body;
+    const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
     try {
       if (!name || !phone || !password) {
         return res.status(400).json({ error: "Имя, номер и пароль обязательны" });
       }
 
-      console.log(`[Registration Attempt]: phone=${phone}, name=${name}`);
+      console.log(`[Registration Attempt]: phone=${phone}, name=${name}, role=${role}`);
       const cleanPhone = phone.replace(/\D/g, '');
       
-      // ВСЕ новые пользователи через регистрацию получают роль 'client'
-      // Исключение только для номера админа (любой формат)
-      const finalRole = (cleanPhone === '998936584455') ? 'admin' : 'client';
+      // If role is provided in body (from Admin Panel), use it. 
+      // Otherwise, default according to business rules.
+      let finalRole = role || 'client';
+      if (!role) {
+        finalRole = (cleanPhone === '998936584455') ? 'admin' : 'client';
+      }
       
-      // Используем нормализованный формат номера с плюсом
       const normalizedPhone = '+' + cleanPhone;
 
-      const insertResult = await db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
+      const insertResult = await db.prepare('INSERT INTO users (name, phone, password, role, "carType", "carPhoto", photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id').run(
         name, normalizedPhone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
       );
       
@@ -453,20 +455,25 @@ async function startServer() {
 
   // Stats
   app.get("/api/stats", async (req, res) => {
-    let totalRevenue = (await db.prepare("SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = 'paid'").get())?.total || 0;
-    let totalOrders = (await db.prepare("SELECT COUNT(*) as count FROM orders").get())?.count || 0;
-    let totalUsers = (await db.prepare("SELECT COUNT(*) as count FROM users").get())?.count || 0;
-    let totalProducts = (await db.prepare("SELECT COUNT(*) as count FROM products").get())?.count || 0;
-    let salesByCategory = await db.prepare(`
-      SELECT c.name, SUM(oi.price * oi.quantity) as value
-      FROM order_items oi
-      JOIN products p ON oi.productId = p.id
-      JOIN categories c ON p.categoryId = c.id
-      JOIN orders o ON oi.orderId = o.id
-      WHERE o.paymentStatus = 'paid'
-      GROUP BY c.id
-    `).all();
-    res.json({ revenue: totalRevenue, orders: totalOrders, users: totalUsers, products: totalProducts, salesByCategory });
+    try {
+      let totalRevenue = (await db.prepare('SELECT SUM("totalPrice") as total FROM orders WHERE "paymentStatus" = \'paid\'').get())?.total || 0;
+      let totalOrders = (await db.prepare('SELECT COUNT(*) as count FROM orders').get())?.count || 0;
+      let totalUsers = (await db.prepare('SELECT COUNT(*) as count FROM users').get())?.count || 0;
+      let totalProducts = (await db.prepare('SELECT COUNT(*) as count FROM products').get())?.count || 0;
+      let salesByCategory = await db.prepare(`
+        SELECT c.name, SUM(oi.price * oi.quantity) as value
+        FROM order_items oi
+        JOIN products p ON oi."productId" = p.id
+        JOIN categories c ON p."categoryId" = c.id
+        JOIN orders o ON oi."orderId" = o.id
+        WHERE o."paymentStatus" = 'paid'
+        GROUP BY c.id, c.name
+      `).all();
+      res.json({ revenue: totalRevenue, orders: totalOrders, users: totalUsers, products: totalProducts, salesByCategory });
+    } catch (e: any) {
+      console.error("[Stats Error]:", e);
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // Telegram
@@ -498,7 +505,7 @@ async function startServer() {
   app.post("/api/courier/upload-proof", upload.single('photo'), async (req, res) => {
     const { orderId } = req.body;
     const imageUrl = `/uploads/proofs/${req.file?.filename}`;
-    await db.prepare("UPDATE orders SET deliveryPhoto = ?, orderStatus = 'delivered' WHERE id = ?").run(imageUrl, orderId);
+    await db.prepare('UPDATE orders SET "deliveryPhoto" = ?, "orderStatus" = \'delivered\' WHERE id = ?').run(imageUrl, orderId);
     res.json({ success: true, imageUrl });
   });
 
@@ -506,7 +513,7 @@ async function startServer() {
   io.on("connection", (socket) => {
     socket.on("update_location", async (data) => {
       const { userId, lat, lng, role, speed } = data;
-      await db.prepare("UPDATE users SET lat = ?, lng = ?, lastSeen = CURRENT_TIMESTAMP WHERE id = ?").run(lat, lng, userId);
+      await db.prepare('UPDATE users SET lat = ?, lng = ?, "lastSeen" = CURRENT_TIMESTAMP WHERE id = ?').run(lat, lng, userId);
       await db.prepare("INSERT INTO location_history (userId, lat, lng) VALUES (?, ?, ?)").run(userId, lat, lng);
       if (role === 'courier') {
         await db.prepare(`
