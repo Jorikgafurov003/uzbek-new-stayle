@@ -278,7 +278,6 @@ const initDb = async () => {
         FOREIGN KEY ("clientId") REFERENCES users(id),
         FOREIGN KEY ("agentId") REFERENCES users(id)
       );
-      );
 
       -- Migration for existing database
       DO $$ 

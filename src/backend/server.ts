@@ -408,29 +408,45 @@ async function startServer() {
   app.post("/api/auth/register", async (req, res) => {
     const { name, phone, password, carType, carPhoto, photo, agentId } = req.body;
     try {
+      if (!name || !phone || !password) {
+        return res.status(400).json({ error: "Имя, номер и пароль обязательны" });
+      }
+
       console.log(`[Registration Attempt]: phone=${phone}, name=${name}`);
-      // ВСЕ новые пользователи через регистрацию получают роль 'client'
-      // Исключение только для номера админа
-      const finalRole = (phone === '+998936584455') ? 'admin' : 'client';
+      const cleanPhone = phone.replace(/\D/g, '');
       
+      // ВСЕ новые пользователи через регистрацию получают роль 'client'
+      // Исключение только для номера админа (любой формат)
+      const finalRole = (cleanPhone === '998936584455') ? 'admin' : 'client';
+      
+      // Используем нормализованный формат номера с плюсом
+      const normalizedPhone = '+' + cleanPhone;
+
       const insertResult = await db.prepare("INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id").run(
-        name, phone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
+        name, normalizedPhone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
       );
       
       const userId = insertResult.lastInsertRowid;
+      console.log(`[Registration DB Result]: lastInsertRowid=${userId}`);
+
       if (!userId) {
-        throw new Error("Failed to retrieve new user ID after insertion");
+        throw new Error("Не удалось получить ID созданного пользователя");
       }
 
       const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-      console.log(`[Registration Success]: user_id=${userId}`);
+      if (!user) {
+        throw new Error("Пользователь был создан, но не найден в базе");
+      }
+
+      console.log(`[Registration Success]: user_id=${user.id}, role=${user.role}`);
       res.json(user);
     } catch (e: any) {
       console.error("[Registration Error]:", e);
+      // Проверка на дубликат номера
       if (e.message?.includes('users_phone_key') || e.code === '23505') {
         res.status(400).json({ error: "Этот номер телефона уже зарегистрирован" });
       } else {
-        res.status(500).json({ error: "Ошибка регистрации", message: e.message });
+        res.status(500).json({ error: "Ошибка при регистрации", message: e.message });
       }
     }
   });
