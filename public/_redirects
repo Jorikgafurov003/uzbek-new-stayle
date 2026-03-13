@@ -1,0 +1,2 @@
+/api/*  https://uzbechka-794ad.onrender.com/api/:splat  200
+/*      /index.html                                   200
