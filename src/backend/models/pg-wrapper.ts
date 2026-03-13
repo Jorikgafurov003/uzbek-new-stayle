@@ -41,8 +41,8 @@ export class PgDatabase {
         // Approximation for lastInsertRowid. This assumes RETURNING id is added to INSERTs
         // or we just return rowCount for now. True PostgreSQL requires 'RETURNING id' on the query.
         return {
-          changes: result.rowCount,
-          lastInsertRowid: result.rows.length > 0 ? result.rows[0].id : undefined
+          changes: result.rowCount || 0,
+          lastInsertRowid: (result.rows && result.rows.length > 0) ? result.rows[0].id : undefined
         };
       }
     };
