@@ -44,7 +44,7 @@ export const getTopStats = async (req: any, res: any) => {
       FROM orders o
       JOIN users u ON o."agentId" = u.id
       WHERE o."createdAt" >= ${monthStart}
-      GROUP BY u.id ORDER BY count DESC LIMIT 1
+      GROUP BY u.id, u.name, u.photo ORDER BY count DESC LIMIT 1
     `).get();
 
     const topCourier = await db.prepare(`
@@ -52,7 +52,7 @@ export const getTopStats = async (req: any, res: any) => {
       FROM orders o
       JOIN users u ON o."courierId" = u.id
       WHERE o."orderStatus" = 'delivered' AND o."createdAt" >= ${monthStart}
-      GROUP BY u.id ORDER BY count DESC LIMIT 1
+      GROUP BY u.id, u.name, u.photo ORDER BY count DESC LIMIT 1
     `).get();
 
     const topClient = await db.prepare(`
@@ -60,7 +60,7 @@ export const getTopStats = async (req: any, res: any) => {
       FROM orders o
       JOIN users u ON o."clientId" = u.id
       WHERE o."createdAt" >= ${monthStart}
-      GROUP BY u.id ORDER BY count DESC LIMIT 1
+      GROUP BY u.id, u.name, u.photo ORDER BY count DESC LIMIT 1
     `).get();
 
     const topSeller = await db.prepare(`
@@ -69,7 +69,7 @@ export const getTopStats = async (req: any, res: any) => {
       JOIN products p ON oi."productId" = p.id
       JOIN orders o ON oi."orderId" = o.id
       WHERE o."createdAt" >= ${monthStart}
-      GROUP BY p.id ORDER BY count DESC LIMIT 1
+      GROUP BY p.id, p.name, p.image ORDER BY count DESC LIMIT 1
     `).get();
 
     res.json({ topAgent, topCourier, topClient, topSeller });
