@@ -1,6 +1,12 @@
-// API configuration
 const getApiBaseUrl = () => {
-  return 'http://localhost:3000';
+  if (typeof window !== 'undefined') {
+    const { hostname, port } = window.location;
+    if (hostname === 'localhost' && (port === '5173' || port === '3000')) {
+      return 'http://localhost:3000';
+    }
+    return ''; // Use relative paths on production
+  }
+  return '';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
