@@ -357,31 +357,48 @@ async function startServer() {
   app.post("/api/auth/login", async (req, res) => {
     const { phone, password } = req.body;
     try {
+      if (!phone || !password) return res.status(400).json({ error: "Номер и пароль обязательны" });
+
+      const cleanPhone = phone.replace(/\D/g, '');
+      const adminPhone = '998936584455';
+      const adminPass = '1210999';
+
+      console.log(`[Login Attempt]: phone=${phone}, cleanPhone=${cleanPhone}`);
+
       // Специальная логика для Супер Админа
-      if (phone === '+998936584455') {
-        let admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+      if (cleanPhone === adminPhone) {
+        let admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`);
         if (admin) {
-          // Если админ существует, но пароль не совпадает (например, обновился) - обновляем
-          if (password === '1210999' && admin.password !== '1210999') {
-            await db.prepare("UPDATE users SET password = ?, role = 'admin' WHERE phone = ?").run('1210999', phone);
-            admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+          // Если админ существует, но данные устарели (или пароль сменился)
+          if (password === adminPass && (admin.password !== adminPass || admin.role !== 'admin')) {
+            console.log("[Admin Update]: Updating password/role for admin phone");
+            await db.prepare("UPDATE users SET password = ?, role = 'admin' WHERE id = ?").run(adminPass, admin.id);
+            admin = await db.prepare("SELECT * FROM users WHERE id = ?").get(admin.id);
           }
         } else {
           // Если админа нет - создаем
-          if (password === '1210999') {
-            await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Администратор', phone, '1210999', 'admin');
-            admin = await db.prepare("SELECT * FROM users WHERE phone = ?").get(phone);
+          if (password === adminPass) {
+            console.log("[Admin Create]: Creating new admin record");
+            await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Администратор', '+' + adminPhone, adminPass, 'admin');
+            admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`);
           }
         }
         
         if (admin && admin.password === password) {
+          console.log("[Admin Success]: Admin logged in");
           return res.json(admin);
         }
       }
 
-      const user = await db.prepare("SELECT * FROM users WHERE phone = ? AND password = ?").get(phone, password);
-      if (user) res.json(user);
-      else res.status(401).json({ error: "Неверный номер или пароль" });
+      // Обычный вход
+      const user = await db.prepare("SELECT * FROM users WHERE (phone = ? OR phone LIKE ?) AND password = ?").get(phone, `%${cleanPhone}`, password);
+      if (user) {
+        console.log(`[User Success]: ${user.name} logged in`);
+        res.json(user);
+      } else {
+        console.log("[Login Failed]: Invalid credentials");
+        res.status(401).json({ error: "Неверный номер или пароль" });
+      }
     } catch (e: any) {
       console.error("[Login Error]:", e);
       res.status(500).json({ error: "Ошибка входа", message: e.message });
