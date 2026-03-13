@@ -397,7 +397,7 @@ async function startServer() {
         res.json(user);
       } else {
         console.log("[Login Failed]: Invalid credentials");
-        res.status(401).json({ error: "Неверный номер или пароль" });
+        res.status(401).json({ error: "Неверный номер или пароль", debug: "VER_1773430000" });
       }
     } catch (e: any) {
       console.error("[Login Error]:", e);
