@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 
-export const AdminAccounting: React.FC<{
+const AdminAccounting: React.FC<{
     setShowAddExpense: (val: boolean) => void;
     handleConfirm: (onConfirm: () => void, title: string, message: string) => void;
     theme?: 'light' | 'futuristic';
@@ -108,3 +108,5 @@ export const AdminAccounting: React.FC<{
         </motion.div>
     );
 };
+
+export default AdminAccounting;

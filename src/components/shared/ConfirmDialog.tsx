@@ -20,7 +20,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   message 
 }) => {
   const { t } = useLanguage();
-  const { speak } = useData();
+  const { speak, brandTheme, theme } = useData();
 
   useEffect(() => {
     if (isOpen) {
@@ -70,7 +70,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                   onConfirm();
                   onClose();
                 }}
-                className="py-4 bg-uzum-primary text-white rounded-2xl font-bold shadow-lg shadow-uzum-primary/20 hover:scale-105 transition-all flex items-center justify-center gap-2"
+                className={`py-4 rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white shadow-[#cb11ab]/20' : 'bg-uzum-primary text-white shadow-uzum-primary/20'} hover:scale-105`}
               >
                 <Check size={20} /> {t('yes')}
               </button>

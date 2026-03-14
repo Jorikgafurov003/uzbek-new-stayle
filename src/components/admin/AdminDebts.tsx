@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { Plus, Info, Check, Banknote, Edit, Trash2 } from 'lucide-react';
 import { UserProfileMiniature } from '../shared/UserProfileMiniature';
 
-export const AdminDebts: React.FC<{
+const AdminDebts: React.FC<{
     setShowAddDebt: (val: boolean) => void;
     setEditingDebt: (debt: any) => void;
     setSelectedDebtForInfo: (debt: any) => void;
@@ -237,3 +237,5 @@ export const AdminDebts: React.FC<{
         </motion.div>
     );
 };
+
+export default AdminDebts;

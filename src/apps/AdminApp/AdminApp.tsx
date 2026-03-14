@@ -13,10 +13,10 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents 
 import L from 'leaflet';
 
 // Lazy loaded components
-const AdminDebts = lazy(() => import('../../components/admin/AdminDebts').then(module => ({ default: module.AdminDebts })));
-const AdminAccounting = lazy(() => import('../../components/admin/AdminAccounting').then(module => ({ default: module.AdminAccounting })));
-const AdminShops = lazy(() => import('../../components/admin/AdminShops').then(module => ({ default: module.AdminShops })));
-const AdminTracker = lazy(() => import('../../components/admin/AdminTracker').then(module => ({ default: module.AdminTracker })));
+const AdminDebts = lazy(() => import('../../components/admin/AdminDebts.tsx'));
+const AdminAccounting = lazy(() => import('../../components/admin/AdminAccounting.tsx'));
+const AdminShops = lazy(() => import('../../components/admin/AdminShops.tsx'));
+const AdminTracker = lazy(() => import('../../components/admin/AdminTracker.tsx'));
 
 import { UserProfileMiniature } from '../../components/shared/UserProfileMiniature';
 
@@ -60,6 +60,7 @@ const StarRating: React.FC<{ rating: number; count?: number; size?: number }> = 
 };
 
 const DigitalClock: React.FC<{ theme: string }> = ({ theme }) => {
+  const { language } = useLanguage();
   const [liveTime, setLiveTime] = useState(new Date());
   useEffect(() => {
     const timer = setInterval(() => setLiveTime(new Date()), 1000);
@@ -72,13 +73,14 @@ const DigitalClock: React.FC<{ theme: string }> = ({ theme }) => {
         {liveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </div>
       <p className={`text-sm font-semibold mt-2 capitalize ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>
-        {liveTime.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        {liveTime.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'uz-UZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
       </p>
     </div>
   );
 };
 
 const WeatherAndExchange: React.FC<{ theme: string }> = ({ theme }) => {
+  const { t } = useLanguage();
   const [weather, setWeather] = useState<{ temp: string; desc: string; icon: string } | null>(null);
   const [usdRate, setUsdRate] = useState<number | null>(null);
 
@@ -113,14 +115,14 @@ const WeatherAndExchange: React.FC<{ theme: string }> = ({ theme }) => {
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${theme === 'futuristic' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-sky-100 text-sky-500'}`}>☀️</div>
         )}
         <div>
-          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-white/40' : 'text-sky-500'}`}>Бухара</p>
+          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-white/40' : 'text-sky-500'}`}>{t('city')}</p>
           {weather ? (
             <>
               <p className={`text-2xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{weather.temp}°C</p>
               <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>{weather.desc}</p>
             </>
           ) : (
-            <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>Загрузка...</p>
+            <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>{t('loading')}...</p>
           )}
         </div>
       </div>
@@ -133,9 +135,9 @@ const WeatherAndExchange: React.FC<{ theme: string }> = ({ theme }) => {
           {usdRate ? (
             <p className={`text-2xl font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{usdRate.toLocaleString()}</p>
           ) : (
-            <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>Загрузка...</p>
+            <p className={`text-sm font-medium ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-300'}`}>{t('loading')}...</p>
           )}
-          <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>Курс ЦБ</p>
+          <p className={`text-[11px] font-medium ${theme === 'futuristic' ? 'text-white/50' : 'text-stone-500'}`}>{t('cbRate')}</p>
         </div>
       </div>
     </div>
@@ -171,7 +173,7 @@ export const AdminApp: React.FC = () => {
     insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, accounting, activityLogs, orderNotification, setOrderNotification, reviews,
     refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
     updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
-    addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
+    addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, deleteSystemError, clearSystemErrors, analyzeErrors,
     deployUpdate, setCommission, uploadProof, apiFetch, addExpense, deleteExpense,
     theme, setTheme, brandTheme, setBrandTheme
   } = useData();
@@ -179,6 +181,7 @@ export const AdminApp: React.FC = () => {
   const { register } = useAuth();
   const { t, language, setLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'users' | 'shops' | 'banners' | 'ai' | 'settings' | 'debts' | 'tracker' | 'security' | 'deploy' | 'telegram' | 'salaries' | 'accounting' | 'warehouse' | 'reviews'>('dashboard');
+  const [userSubTab, setUserSubTab] = useState<'staff' | 'buyers' | 'all'>('all');
   const [shopTab, setShopTab] = useState<'active' | 'archived'>('active');
   const [debtSubTab, setDebtSubTab] = useState<'list' | 'history'>('list');
   const [telegramMessage, setTelegramMessage] = useState('');
@@ -217,6 +220,7 @@ export const AdminApp: React.FC = () => {
   const [productImages, setProductImages] = useState<string[]>([]);
   const [bannerImages, setBannerImages] = useState<string[]>([]);
   const [editingBanner, setEditingBanner] = useState<any>(null);
+  const [imageMetadata, setImageMetadata] = useState<{ width: number; height: number; size: string } | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string | null>(null);
   const [showAddShop, setShowAddShop] = useState(false);
   const [editingShop, setEditingShop] = useState<any>(null);
@@ -252,25 +256,28 @@ export const AdminApp: React.FC = () => {
   };
 
   const handleCreateShop = async () => {
-    if (!newShopData.name || !newShopData.clientId) return;
-    await addShop({
-      ...newShopData,
-      clientId: Number(newShopData.clientId),
-      agentId: newShopData.agentId ? Number(newShopData.agentId) : undefined
-    });
-    setShowAddShop(false);
-    setNewShopData({ name: '', address: '', latitude: 39.7747, longitude: 64.4286, clientId: '', agentId: '' });
-    speak(`Магазин ${newShopData.name} добавлен`);
-    refreshData();
+    if (!newShopData.name || !newShopData.clientId) {
+      alert(t('errorIncompleteData'));
+      return;
+    }
+    try {
+      await addShop({
+        ...newShopData,
+        clientId: Number(newShopData.clientId),
+        agentId: newShopData.agentId ? Number(newShopData.agentId) : undefined
+      });
+      setShowAddShop(false);
+      setNewShopData({ name: '', address: '', latitude: 39.7747, longitude: 64.4286, clientId: '', agentId: '' });
+      speak(`Магазин ${newShopData.name} добавлен`);
+      alert(t('shopAddedSuccess'));
+      refreshData();
+    } catch (error: any) {
+      console.error("Failed to create shop:", error);
+      alert(`Ошибка при создании магазина: ${error.message || "Неизвестная ошибка"}`);
+    }
   };
 
   const handleUpdateShop = async () => {
-    if (!editingShop || !editingShop.name || !editingShop.clientId) return;
-    await updateShop(editingShop.id, {
-      ...editingShop,
-      clientId: Number(editingShop.clientId),
-      agentId: editingShop.agentId ? Number(editingShop.agentId) : null
-    });
     setEditingShop(null);
     speak(`Магазин ${editingShop.name} обновлен`);
     refreshData();
@@ -297,14 +304,22 @@ export const AdminApp: React.FC = () => {
         Array.from(files).forEach((file: File) => {
           if (newImages.length < 5) {
             const reader = new FileReader();
+            const fileSize = (file.size / 1024).toFixed(1) + ' KB';
             reader.onloadend = () => {
               if (reader.result) {
-                newImages.push(reader.result as string);
-                if (type === 'product') setProductImages([...newImages]);
-                else {
-                  setBannerImages([...newImages]);
-                  if (newImages.length === 1) setImagePreview(newImages[0]);
-                }
+                const img = new Image();
+                img.onload = () => {
+                  if (type === 'banner') {
+                    setImageMetadata({ width: img.width, height: img.height, size: fileSize });
+                  }
+                  newImages.push(reader.result as string);
+                  if (type === 'product') setProductImages([...newImages]);
+                  else {
+                    setBannerImages([...newImages]);
+                    if (newImages.length === 1) setImagePreview(reader.result as string);
+                  }
+                };
+                img.src = reader.result as string;
               }
             };
             reader.readAsDataURL(file);
@@ -404,7 +419,7 @@ export const AdminApp: React.FC = () => {
           <div className="mb-8 overflow-hidden rounded-[2.5rem] shadow-xl border border-white/20">
             <div className="flex animate-marquee whitespace-nowrap">
               {[...banners, ...banners].map((banner, idx) => (
-                <div key={`${banner.id}-${idx}`} className="inline-block w-full md:w-[600px] h-48 relative flex-shrink-0 mr-4">
+                <div key={`${banner.id}-${idx}`} className="inline-block w-full md:w-[600px] h-[400px] relative flex-shrink-0 mr-4">
                   <img src={banner.imageUrl} className="absolute inset-0 w-full h-full object-cover rounded-[2.5rem]" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6 rounded-[2.5rem]">
                     <h3 className="text-white font-black text-lg uppercase tracking-wider">{banner.title}</h3>
@@ -736,7 +751,7 @@ export const AdminApp: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
               {/* Recent Orders - Spans 6 */}
               <div className={`lg:col-span-6 p-8 rounded-[3.5rem] shadow-sm border transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
-                <h4 className={`text-xs font-black uppercase tracking-[0.2em] mb-8 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Recent Orders</h4>
+                <h4 className={`text-xs font-black uppercase tracking-[0.2em] mb-8 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('recentOrders')}</h4>
                 <div className="space-y-5">
                   {orders.slice(0, 5).map(order => (
                     <div key={order.id} className="flex items-center gap-4 group">
@@ -763,7 +778,7 @@ export const AdminApp: React.FC = () => {
               <div className={`lg:col-span-6 p-8 rounded-[3.5rem] shadow-sm border flex flex-col max-h-[500px] transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex items-center gap-3">
-                    <h4 className={`text-xs font-black uppercase tracking-[0.2em] ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Живая лента</h4>
+                    <h4 className={`text-xs font-black uppercase tracking-[0.2em] ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('liveFeed')}</h4>
                     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${theme === 'futuristic' ? 'bg-cyan-500/10' : 'bg-green-50'}`}>
                       <div className={`w-2 h-2 rounded-full animate-pulse ${theme === 'futuristic' ? 'bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)]' : 'bg-green-500'}`}></div>
                       <span className={`text-[9px] font-bold uppercase tracking-wider ${theme === 'futuristic' ? 'text-cyan-400' : 'text-green-600'}`}>Live</span>
@@ -775,7 +790,7 @@ export const AdminApp: React.FC = () => {
                   {activityLogs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-stone-300">
                       <Clock size={32} className="mb-2 opacity-20" />
-                      <p className={`text-xs font-bold font-sans uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/20' : 'text-stone-300'}`}>Нет активности</p>
+                      <p className={`text-xs font-bold font-sans uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/20' : 'text-stone-300'}`}>{t('noActivity')}</p>
                     </div>
                   ) : (
                     activityLogs.map((log, i) => {
@@ -792,7 +807,7 @@ export const AdminApp: React.FC = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`text-[13px] leading-snug ${theme === 'futuristic' ? 'text-white/90' : 'text-stone-800'}`}>
-                              <span className={`font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-700'}`}>{log.userName || 'Система'}</span>
+                              <span className={`font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-700'}`}>{log.userName || t('system')}</span>
                               <span className={`font-medium ${theme === 'futuristic' ? 'text-white/60' : 'text-stone-600'}`}> {log.action}</span>
                             </p>
                             {log.details && <p className={`text-[11px] mt-1 leading-relaxed ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-500'}`}>{log.details}</p>}
@@ -812,7 +827,7 @@ export const AdminApp: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Top Products - Spans 6 */}
               <div className={`lg:col-span-6 p-8 rounded-[3.5rem] shadow-sm border transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
-                <h4 className={`text-xs font-black uppercase tracking-[0.2em] mb-8 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Top Selling Products</h4>
+                <h4 className={`text-xs font-black uppercase tracking-[0.2em] mb-8 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('topSellingProducts')}</h4>
                 <div className="space-y-6">
                   {topProducts.map((product, index) => (
                     <div key={index} className="flex items-center gap-5">
@@ -835,7 +850,7 @@ export const AdminApp: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <p className={`text-sm font-black ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{(product.revenue || 0).toLocaleString()}</p>
-                        <p className={`text-[9px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{product.count} Sold</p>
+                        <p className={`text-[9px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{product.count} {t('sold')}</p>
                       </div>
                     </div>
                   ))}
@@ -845,9 +860,9 @@ export const AdminApp: React.FC = () => {
               {/* Critical Errors - Spans 6 */}
               <div className={`lg:col-span-6 p-8 rounded-[3.5rem] shadow-sm border transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
                 <div className="flex justify-between items-center mb-8">
-                  <h4 className={`text-xs font-black uppercase tracking-[0.2em] ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>System Monitoring</h4>
+                  <h4 className={`text-xs font-black uppercase tracking-[0.2em] ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('systemMonitoring')}</h4>
                   <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${theme === 'futuristic' ? 'bg-red-500/20 text-red-400' : 'bg-red-50 text-red-500'}`}>
-                    {systemErrors.filter(e => !e.fixed).length} Critical Errors
+                    {systemErrors.filter(e => !e.fixed).length} {t('criticalErrors')}
                   </span>
                 </div>
                 <div className="space-y-4">
@@ -863,7 +878,7 @@ export const AdminApp: React.FC = () => {
                             onClick={() => fixSystemError(err.id)}
                             className="text-[9px] font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest transition-all"
                           >
-                            Fix
+                            {t('fix')}
                           </button>
                         </div>
                         <p className={`text-xs font-bold leading-relaxed ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{err.message}</p>
@@ -875,8 +890,8 @@ export const AdminApp: React.FC = () => {
                       <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${theme === 'futuristic' ? 'bg-green-500/10 text-green-400' : 'bg-green-50 text-green-500'}`}>
                         <CheckCircle size={32} />
                       </div>
-                      <p className={`text-sm font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>No Critical Issues</p>
-                      <p className={`text-[10px] uppercase tracking-widest mt-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>System is running optimally</p>
+                      <p className={`text-sm font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{t('noCriticalIssues')}</p>
+                      <p className={`text-[10px] uppercase tracking-widest mt-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('systemOptimal')}</p>
                     </div>
                   )}
                 </div>
@@ -1321,8 +1336,15 @@ export const AdminApp: React.FC = () => {
 
         {activeTab === 'users' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className={`text-2xl font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{t('users')}</h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className={`text-2xl font-bold ${theme === 'futuristic' ? 'text-white' : 'text-stone-800'}`}>{t('users')}</h2>
+                <div className="flex gap-1 bg- stone-50/50 p-1 rounded-2xl border border-stone-100 mt-2">
+                  <button onClick={() => setUserSubTab('all')} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${userSubTab === 'all' ? (theme === 'futuristic' ? 'bg-cyan-500 text-white neon-glow' : 'bg-stone-900 text-white') : 'text-stone-400 hover:text-stone-600'}`}>Все</button>
+                  <button onClick={() => setUserSubTab('staff')} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${userSubTab === 'staff' ? (theme === 'futuristic' ? 'bg-cyan-500 text-white neon-glow' : 'bg-stone-900 text-white') : 'text-stone-400 hover:text-stone-600'}`}>Сотрудники</button>
+                  <button onClick={() => setUserSubTab('buyers')} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${userSubTab === 'buyers' ? (theme === 'futuristic' ? 'bg-cyan-500 text-white neon-glow' : 'bg-stone-900 text-white') : 'text-stone-400 hover:text-stone-600'}`}>Покупатели</button>
+                </div>
+              </div>
               <button
                 onClick={() => setShowAddUser(true)}
                 className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 ${theme === 'futuristic' ? 'bg-cyan-500 text-white neon-glow' : 'gold-gradient text-white'}`}
@@ -1332,7 +1354,11 @@ export const AdminApp: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {users.map(u => (
+              {users.filter(u => {
+                if (userSubTab === 'staff') return u.role === 'admin' || u.role === 'agent' || u.role === 'courier';
+                if (userSubTab === 'buyers') return u.role === 'client';
+                return true;
+              }).map(u => (
                 <div key={u.id} className={`p-6 rounded-[2.5rem] shadow-sm border flex flex-col items-center text-center relative group hover:shadow-xl transition-all overflow-hidden ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
                   <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
                     <button
@@ -1346,9 +1372,13 @@ export const AdminApp: React.FC = () => {
                     </button>
                     <button
                       disabled={u.id === currentUser?.id}
-                      onClick={() => handleConfirm(() => {
-                        deleteUser(u.id);
-                        speak(`Пользователь ${u.name} удален`);
+                      onClick={() => handleConfirm(async () => {
+                        try {
+                          await deleteUser(u.id);
+                          speak(`Пользователь ${u.name} удален`);
+                        } catch (err: any) {
+                          alert(err.message || 'Ошибка при удалении');
+                        }
                       }, t('confirmDeleteUser'), t('areYouSure'))}
                       className="p-3 bg-white text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg border border-stone-100 disabled:opacity-30"
                     >
@@ -1364,33 +1394,53 @@ export const AdminApp: React.FC = () => {
                     )}
                     <div className="absolute inset-0 bg-gold/20 opacity-0 group-hover/photo:opacity-100 transition-opacity" />
                     {/* Online Status Dot */}
-                    <div className={`absolute bottom-2 right-2 w-4 h-4 rounded-full border-2 border-white shadow-sm z-20 ${u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 60000)
+                    <div className={`absolute bottom-2 right-2 w-4 h-4 rounded-full border-2 border-white shadow-sm z-20 ${u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 120000)
                       ? 'bg-green-500 animate-pulse'
                       : 'bg-stone-300'
                       }`} />
                   </div>
 
-                  <h3 className="font-black text-stone-800 text-lg truncate w-full px-2 mb-1">{u.name}</h3>
-                  <div className="mb-4">
-                    {(u.role === 'agent' || u.role === 'courier') && (
-                      <StarRating rating={u.rating || 0} count={u.ratingCount || 0} size={14} />
-                    )}
-                  </div>
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-5">{u.phone}</p>
+                  <div className="w-full">
+                    <h3 className="font-black text-stone-800 text-lg truncate w-full px-2 mb-1">{u.name}</h3>
+                    <div className="mb-2 h-4">
+                      {(u.role === 'agent' || u.role === 'courier') && (
+                        <StarRating rating={u.rating || 0} count={u.ratingCount || 0} size={14} />
+                      )}
+                    </div>
+                    <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-4">{u.phone}</p>
 
-                  <div className="flex flex-wrap justify-center gap-2 w-full">
-                    <span className={`flex-1 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm border ${u.role === 'admin' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                      u.role === 'agent' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                        u.role === 'courier' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                          'bg-stone-50 text-stone-500 border-stone-100'
-                      }`}>
-                      {u.role}
-                    </span>
-                    {u.carType && (
-                      <span className="flex-1 py-2 bg-stone-50 text-stone-500 border border-stone-100 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center gap-1">
-                        <Truck size={12} /> {u.carType}
-                      </span>
-                    )}
+                    <div className="flex flex-col gap-2 w-full">
+                      <div className="flex gap-2">
+                        <span className={`flex-1 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm border ${u.role === 'admin' ? 'bg-purple-50 text-purple-600 border-purple-100' :
+                          u.role === 'agent' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                            u.role === 'courier' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                              'bg-stone-50 text-stone-500 border-stone-100'
+                          }`}>
+                          {u.role}
+                        </span>
+                        {u.carType && (
+                          <span className="flex-1 py-2 bg-stone-50 text-stone-500 border border-stone-100 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center gap-1">
+                            <Truck size={12} /> {u.carType}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {u.role === 'client' && u.agentId && (
+                        <div className="px-3 py-2 bg-stone-50 rounded-xl border border-stone-100 flex items-center justify-center gap-2">
+                          <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Агент:</span>
+                          <span className="text-[9px] font-bold text-stone-700">{users.find(agent => agent.id === u.agentId)?.name || 'Не назначен'}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-center gap-1.5 mt-1">
+                         <div className={`w-1.5 h-1.5 rounded-full ${u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 120000) ? 'bg-green-500 pulsing-dot' : 'bg-stone-300'}`} />
+                         <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">
+                           {u.lastSeen && (new Date().getTime() - new Date(u.lastSeen).getTime() < 120000) 
+                             ? 'В сети' 
+                             : u.lastSeen ? `Был: ${new Date(u.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Не в сети'}
+                         </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1516,19 +1566,33 @@ export const AdminApp: React.FC = () => {
               </div>
               <div className="space-y-6">
                 <div className={`p-6 rounded-[2.5rem] shadow-sm border transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-stone-100'}`}>
-                  <h4 className={`text-xs font-black uppercase tracking-widest mb-4 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>AI Insights History</h4>
-                  <div className="space-y-4">
-                    {insights.map((insight, i) => (
-                      <div key={i} className={`p-4 rounded-2xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
-                        <div className="flex justify-between items-start mb-2">
-                          <span className={`text-[10px] font-bold ${theme === 'futuristic' ? 'text-white/30' : 'text-stone-400'}`}>{new Date(insight.created_at).toLocaleDateString()}</span>
-                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${insight.risk_level === 'high' ? (theme === 'futuristic' ? 'bg-red-500/20 text-red-400' : 'bg-red-100 text-red-600') : (theme === 'futuristic' ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600')
-                            }`}>{insight.risk_level}</span>
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className={`text-xs font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>System Error Log</h4>
+                    {systemErrors.length > 0 && (
+                      <button onClick={() => handleConfirm(clearSystemErrors, 'Clear All Errors', 'Are you sure you want to delete all error logs?')} className="text-[8px] font-black uppercase text-red-500 hover:underline">Clear All</button>
+                    )}
+                  </div>
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
+                    {systemErrors.length > 0 ? systemErrors.sort((a,b) => b.id - a.id).map((error, i) => (
+                      <div key={error.id} className={`p-4 rounded-2xl border transition-all ${!error.fixed ? 'border-red-500/30 bg-red-500/5' : 'border-stone-100 bg-stone-50 opacity-60'}`}>
+                        <div className="flex justify-between items-start mb-1 text-[8px] font-black uppercase tracking-widest text-stone-400">
+                          <span>{new Date(error.createdAt).toLocaleString()}</span>
+                          <span className={!error.fixed ? 'text-red-500' : 'text-green-500'}>{!error.fixed ? 'pending' : 'fixed'}</span>
                         </div>
-                        <p className={`text-xs font-bold mb-1 ${theme === 'futuristic' ? 'text-white/90' : 'text-stone-800'}`}>{insight.summary}</p>
-                        <p className={`text-[10px] line-clamp-2 ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-500'}`}>{insight.recommendation}</p>
+                        <p className="text-[10px] font-bold text-stone-800 line-clamp-2">{error.message}</p>
+                        <div className="mt-2 flex justify-between items-center">
+                           <div className="flex gap-2">
+                             <button onClick={() => alert(error.stack || 'No stack trace')} className="text-[8px] font-black uppercase text-blue-500">Stack Trace</button>
+                             {!error.fixed && (
+                               <button onClick={() => fixSystemError(error.id)} className="text-[8px] font-black uppercase text-green-500">Resolve</button>
+                             )}
+                           </div>
+                           <button onClick={() => deleteSystemError(error.id)} className="text-[8px] font-black uppercase text-red-400 hover:text-red-600">Delete</button>
+                        </div>
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-[10px] text-stone-400 italic text-center py-10">No system errors logged</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1626,7 +1690,7 @@ export const AdminApp: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {banners.map(banner => (
                 <div key={banner.id} className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-stone-100 group">
-                  <div className="relative h-48 overflow-hidden">
+                  <div className="relative h-64 overflow-hidden">
                     <img src={banner.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                       <button
@@ -1669,10 +1733,14 @@ export const AdminApp: React.FC = () => {
                 updates.voice_enabled = formData.get('voice_enabled') === 'on' ? 'true' : 'false';
                 updates.turbo_mode = formData.get('turbo_mode') === 'on' ? 'true' : 'false';
                 handleConfirm(async () => {
-                  await updateSettings(updates);
-                  speak("Настройки успешно сохранены");
-                  alert('Settings saved!');
-                });
+                  try {
+                    await updateSettings(updates);
+                    speak("Настройки успешно сохранены");
+                    alert('Настройки успешно сохранены!');
+                  } catch (err) {
+                    alert('Ошибка при сохранении настроек');
+                  }
+                }, 'Сохранить настройки', 'Вы уверены, что хотите применить изменения?');
               }} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -1824,20 +1892,20 @@ export const AdminApp: React.FC = () => {
           activeTab === 'salaries' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Зарплаты и Управление Персоналом</h2>
+                <h2 className="text-2xl font-bold">{t('salaryManagement')}</h2>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowAddSalary(true)}
                     className="gold-gradient text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md"
                   >
-                    <Plus size={20} /> Выплатить Зарплату
+                    <Plus size={20} /> {t('paySalary')}
                   </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
-                  <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest">Конфигурация Сотрудников</h3>
+                  <h3 className="text-sm font-black text-stone-400 uppercase tracking-widest">{t('employeeConfig')}</h3>
                   {users.filter(u => u.role === 'agent' || u.role === 'courier').map(emp => {
                     const config = salaryConfigs.find(c => c.userId === emp.id) || { baseSalary: 0, commissionPercent: 5, workingDays: 22 };
                     const totalSales = orders.filter(o => (o.agentId === emp.id || o.courierId === emp.id) && o.paymentStatus === 'paid').reduce((s, o) => s + (o.totalPrice || 0), 0);
@@ -1856,44 +1924,44 @@ export const AdminApp: React.FC = () => {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className={`text-[10px] font-black uppercase tracking-widest block ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Итого к выплате</span>
+                            <span className={`text-[10px] font-black uppercase tracking-widest block ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('totalPayable')}</span>
                             <span className={`text-xl font-black ${theme === 'futuristic' ? 'text-cyan-400' : 'text-gold-dark'}`}>{totalSalary.toLocaleString()} UZS</span>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                           <div className="space-y-1">
-                            <label className={`text-[9px] font-black uppercase tracking-widest block ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Оклад (Фикс)</label>
+                            <label className={`text-[9px] font-black uppercase tracking-widest block ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('fixedSalary')}</label>
                             <input
                               type="number"
                               defaultValue={config.baseSalary}
                               onBlur={(e) => {
                                 const val = Number(e.target.value);
                                 updateSalaryConfig(emp.id, { ...config, baseSalary: val });
-                                speak(`Оклад для ${emp.name} обновлен`);
+                                speak(`${t('salaryUpdated')} ${emp.name}`);
                               }}
                               className={`w-full p-2 rounded-xl text-xs font-bold outline-none transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10 text-white focus:border-cyan-500' : 'bg-stone-50 border-stone-100 text-stone-800 focus:border-gold'}`}
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className={`text-[9px] font-black uppercase tracking-widest block ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>Комиссия (%)</label>
+                            <label className={`text-[9px] font-black uppercase tracking-widest block ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-400'}`}>{t('commissionPercent')}</label>
                             <input
                               type="number"
                               defaultValue={config.commissionPercent}
                               onBlur={(e) => {
                                 const val = Number(e.target.value);
                                 updateSalaryConfig(emp.id, { ...config, commissionPercent: val });
-                                speak(`Процент комиссии для ${emp.name} изменен`);
+                                speak(`${t('commissionUpdated')} ${emp.name}`);
                               }}
                               className={`w-full p-2 rounded-xl text-xs font-bold outline-none transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10 text-white focus:border-cyan-500' : 'bg-stone-50 border-stone-100 text-stone-800 focus:border-gold'}`}
                             />
                           </div>
                           <div className={`p-2 rounded-xl border flex flex-col justify-center items-center ${theme === 'futuristic' ? 'bg-cyan-500/10 border-cyan-500/20' : 'bg-gold/5 border-gold/10'}`}>
-                            <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-cyan-400' : 'text-gold-dark'}`}>Продажи</span>
+                            <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-cyan-400' : 'text-gold-dark'}`}>{t('salesLabel')}</span>
                             <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-cyan-300' : 'text-gold-dark'}`}>{totalSales.toLocaleString()}</span>
                           </div>
                           <div className={`p-2 rounded-xl border flex flex-col justify-center items-center ${theme === 'futuristic' ? 'bg-cyan-500/10 border-cyan-500/20' : 'bg-gold/5 border-gold/10'}`}>
-                            <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-cyan-400' : 'text-gold-dark'}`}>Комиссия</span>
+                            <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-cyan-400' : 'text-gold-dark'}`}>{t('commission')}</span>
                             <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-cyan-300' : 'text-gold-dark'}`}>{commission.toLocaleString()}</span>
                           </div>
                           <div className="flex items-center justify-center">
@@ -1903,7 +1971,7 @@ export const AdminApp: React.FC = () => {
                               }}
                               className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${theme === 'futuristic' ? 'bg-cyan-500 text-white neon-glow' : 'bg-stone-900 text-white hover:bg-stone-800'}`}
                             >
-                              Выплатить
+                              {t('payOut')}
                             </button>
                           </div>
                         </div>
@@ -2425,8 +2493,8 @@ export const AdminApp: React.FC = () => {
             >
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h3 className="text-xl font-bold">Новый Магазин</h3>
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-1">Добавление торговой точки</p>
+                  <h3 className="text-xl font-bold">{t('newShop')}</h3>
+                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-1">{t('addShopSubtitle')}</p>
                 </div>
                 <button onClick={() => setShowAddShop(false)} className="text-stone-400 p-2 hover:bg-stone-50 rounded-full transition-all"><X /></button>
               </div>
@@ -2488,7 +2556,7 @@ export const AdminApp: React.FC = () => {
                   onClick={handleCreateShop}
                   className="w-full py-5 gold-gradient text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl shadow-gold/20 mt-4 active:scale-95 transition-all text-xs"
                 >
-                  Создать Магазин
+                  {t('createShop')}
                 </button>
               </div>
             </motion.div>
@@ -2508,8 +2576,8 @@ export const AdminApp: React.FC = () => {
             >
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h3 className="text-xl font-bold">Изменить Магазин</h3>
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-1">Редактирование торговой точки</p>
+                  <h3 className="text-xl font-bold">{t('editShop')}</h3>
+                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest mt-1">{t('editShopSubtitle')}</p>
                 </div>
                 <button onClick={() => setEditingShop(null)} className="text-stone-400 p-2 hover:bg-stone-50 rounded-full transition-all"><X /></button>
               </div>
@@ -2828,9 +2896,12 @@ export const AdminApp: React.FC = () => {
               initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
               className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl border border-stone-100"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold tracking-tight text-stone-800">{editingBanner ? 'Изменить баннер' : t('addBanner')}</h3>
-                <button onClick={() => { setShowAddBanner(false); setEditingBanner(null); setImagePreview(null); setBannerImages([]); }} className="p-2 bg-stone-50 rounded-xl text-stone-400 hover:text-stone-800 transition-all"><X size={20} /></button>
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-xl font-bold tracking-tight text-stone-800">{editingBanner ? 'Изменить баннер' : t('addBanner')}</h3>
+                  <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest leading-none mt-1">Управление контентом</p>
+                </div>
+                <button onClick={() => { setShowAddBanner(false); setEditingBanner(null); setImagePreview(null); setBannerImages([]); setImageMetadata(null); }} className="p-2 bg-stone-50 rounded-xl text-stone-400 hover:text-stone-800 transition-all"><X size={20} /></button>
               </div>
               <form onSubmit={async (e) => {
                 e.preventDefault();
@@ -2856,12 +2927,43 @@ export const AdminApp: React.FC = () => {
                 setEditingBanner(null);
                 setImagePreview(null);
                 setBannerImages([]);
-              }} className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stone-200 rounded-[2rem] bg-stone-50 hover:bg-stone-100 transition-all cursor-pointer relative overflow-hidden group h-32">
+                setImageMetadata(null);
+              }} className="space-y-4 max-h-[75vh] overflow-y-auto px-1 no-scrollbar">
+                {/* Live Preview Section */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest">Предпросмотр</label>
+                    {imageMetadata && (
+                      <div className="flex gap-2 text-[9px] font-bold text-cyan-500 uppercase tracking-widest bg-cyan-500/5 px-2 py-0.5 rounded-lg border border-cyan-500/10">
+                        <span>{imageMetadata.width}x{imageMetadata.height}</span>
+                        <span className="opacity-30">|</span>
+                        <span>{imageMetadata.size}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative h-40 rounded-2xl overflow-hidden shadow-inner bg-stone-100 group/preview border border-stone-200">
+                    {imagePreview ? (
+                      <>
+                        <img src={imagePreview} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3">
+                          <h2 className="text-white text-sm font-black leading-tight tracking-tight max-w-[90%] line-clamp-1">
+                            {editingBanner?.title || 'Заголовок'}
+                          </h2>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-stone-300">
+                        <ImageIcon size={24} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-stone-200 rounded-2xl bg-stone-50 hover:bg-stone-100 transition-all cursor-pointer relative overflow-hidden group h-24">
                     <div className="flex flex-col items-center">
-                      <Upload className="text-stone-300 mb-2" size={32} />
-                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Добавить фото (макс. 5)</p>
+                      <Upload className="text-stone-300 mb-1" size={24} />
+                      <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Загрузить с устройства</p>
                     </div>
                     <input
                       type="file"
@@ -2873,49 +2975,72 @@ export const AdminApp: React.FC = () => {
                   </div>
 
                   {bannerImages.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto py-2 no-scrollbar">
+                    <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
                       {bannerImages.map((img, i) => (
-                        <div key={i} className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden group/img">
+                        <div key={i} className="relative w-12 h-12 flex-shrink-0 rounded-xl overflow-hidden group/img border border-stone-100">
                           <img src={img} className="w-full h-full object-cover" />
                           <button
                             type="button"
                             onClick={() => {
                               const newImgs = bannerImages.filter((_, idx) => idx !== i);
                               setBannerImages(newImgs);
-                              if (img === imagePreview) setImagePreview(newImgs[0] || null);
+                              if (img === imagePreview) {
+                                setImagePreview(newImgs[0] || null);
+                                setImageMetadata(null);
+                              }
                             }}
                             className="absolute inset-0 bg-red-500/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Заголовок</label>
-                  <input name="title" defaultValue={editingBanner?.title} required className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
+
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Заголовок</label>
+                    <input name="title" defaultValue={editingBanner?.title} required className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all text-sm font-bold" />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Link (URL)</label>
+                      <input name="link" defaultValue={editingBanner?.link} placeholder="/promo/1" className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all text-xs font-bold" />
+                    </div>
+                    <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-100 mt-5">
+                      <input type="checkbox" name="isActive" id="isActive" defaultChecked={editingBanner ? editingBanner.isActive === 1 : true} className="w-4 h-4 accent-gold cursor-pointer" />
+                      <label htmlFor="isActive" className="text-[9px] font-black text-stone-400 uppercase tracking-widest cursor-pointer">Активен</label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button type="button" onClick={(e) => {
+                      const extras = e.currentTarget.nextElementSibling as HTMLElement;
+                      extras.classList.toggle('hidden');
+                    }} className="text-[10px] font-bold text-stone-400 uppercase tracking-widest hover:text-stone-600 transition-all flex items-center gap-1">
+                      Дополнительные параметры <ChevronRight size={12} />
+                    </button>
+                    <div className="hidden space-y-3 pt-2">
+                      <div>
+                        <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Image URL</label>
+                        <input name="imageUrl" defaultValue={editingBanner?.imageUrl} placeholder="https://..." className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all text-xs font-medium" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Video URL</label>
+                        <input name="videoUrl" defaultValue={editingBanner?.videoUrl} placeholder="https://..." className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all text-xs font-medium" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Image URL (Optional)</label>
-                  <input name="imageUrl" defaultValue={editingBanner?.imageUrl} placeholder="https://..." className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
+
+                <div className="pt-2 sticky bottom-0 bg-white pb-1">
+                  <button type="submit" className="w-full gold-gradient text-white font-black text-xs uppercase tracking-[0.2em] py-4 rounded-2xl shadow-xl hover:shadow-gold/30 transition-all active:scale-95">
+                    {t('save')}
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Video URL (Optional)</label>
-                  <input name="videoUrl" defaultValue={editingBanner?.videoUrl} placeholder="https://..." className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2">Link (Optional)</label>
-                  <input name="link" defaultValue={editingBanner?.link} placeholder="/promo/1" className="w-full p-4 rounded-2xl bg-stone-50 border border-stone-100 outline-none focus:border-gold transition-all font-medium" />
-                </div>
-                <div className="flex items-center gap-3 p-4 bg-stone-50 rounded-2xl border border-stone-100">
-                  <input type="checkbox" name="isActive" id="isActive" defaultChecked={editingBanner ? editingBanner.isActive === 1 : true} className="w-5 h-5 accent-gold cursor-pointer" />
-                  <label htmlFor="isActive" className="text-[10px] font-black text-stone-400 uppercase tracking-widest cursor-pointer">Активный баннер</label>
-                </div>
-                <button type="submit" className="w-full gold-gradient text-white font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[1.5rem] shadow-xl hover:shadow-gold/30 transition-all active:scale-95">
-                  {t('save')}
-                </button>
               </form>
             </motion.div>
           </motion.div>
@@ -3001,23 +3126,34 @@ export const AdminApp: React.FC = () => {
                 };
 
                 const saveUser = async () => {
-                  if (editingUser) {
-                    await updateUser(editingUser.id, data);
-                  } else {
-                    await apiFetch('/api/auth/register', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(data),
-                    });
-                    await refreshData(['users']);
+                  try {
+                    if (editingUser) {
+                      await updateUser(editingUser.id, data);
+                      alert('Данные пользователя успешно обновлены');
+                    } else {
+                      const res = await apiFetch('/api/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                      });
+                      if (!res.ok) {
+                        const errorData = await res.json();
+                        throw new Error(errorData.error || t('registrationError'));
+                      }
+                      await refreshData(['users']);
+                      alert('Новый пользователь успешно зарегистрирован');
+                    }
+                    setShowAddUser(false);
+                    setEditingUser(null);
+                    setUserPhotoPreview(null);
+                    speak(editingUser ? 'Данные пользователя обновлены' : 'Новый пользователь зарегистрирован');
+                  } catch (error: any) {
+                    console.error("User save error:", error);
+                    alert(`Ошибка: ${error.message}`);
                   }
                 };
 
-                saveUser();
-                setShowAddUser(false);
-                setEditingUser(null);
-                setUserPhotoPreview(null);
-                speak(editingUser ? 'Данные пользователя обновлены' : 'Новый пользователь зарегистрирован');
+                await saveUser();
               }} className="space-y-6">
 
                 <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stone-200 rounded-[2rem] bg-stone-50 hover:bg-stone-100 transition-all cursor-pointer relative overflow-hidden group h-32">

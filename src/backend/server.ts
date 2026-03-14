@@ -23,6 +23,9 @@ import { MonitoringService } from "./services/monitoringService.js";
 import { DeployService } from "./services/deployService.js";
 import { FirebaseService } from "./services/firebaseService.js";
 
+import { getSystemErrors } from "./controllers/adminController.js";
+import { catchAsync } from "./utils/catchAsync.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -76,52 +79,55 @@ async function startServer() {
   app.use("/api/products", productRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/ratings", ratingRoutes);
+  app.get("/api/system-errors", getSystemErrors);
 
-  // Categories
-  app.get("/api/categories", async (req, res) => res.json(await db.prepare("SELECT * FROM categories").all()));
-  app.post("/api/categories", async (req, res) => {
+  // Simple wrapper for routes that don't have their own router files yet
+  app.get("/api/categories", catchAsync(async (req: any, res: any) => res.json(await db.prepare("SELECT * FROM categories").all())));
+  app.post("/api/categories", catchAsync(async (req: any, res: any) => {
     const { name } = req.body;
     const result = await db.prepare("INSERT INTO categories (name) VALUES (?) RETURNING id").run(name);
     res.json({ id: result.lastInsertRowid, name });
-  });
+  }));
 
-  // Banners
-  app.get("/api/banners", async (req, res) => {
+  app.get("/api/banners", catchAsync(async (req: any, res: any) => {
     const banners = await db.prepare("SELECT * FROM banners ORDER BY id DESC").all();
     res.json(banners.map((b: any) => ({
       ...b,
       images: b.images ? JSON.parse(b.images) : []
     })));
-  });
-  app.post("/api/banners", async (req, res) => {
+  }));
+
+  app.post("/api/banners", catchAsync(async (req: any, res: any) => {
     const { title, imageUrl, images, videoUrl, link, isActive } = req.body;
     const imagesJson = images ? JSON.stringify(images) : null;
-    const result = await db.prepare('INSERT INTO banners (title, "imageUrl", images, "videoUrl", link, "isActive") VALUES (?, ?, ?, ?, ?, ?) RETURNING id').run(
+    const row = await db.prepare('INSERT INTO banners (title, "imageUrl", images, "videoUrl", link, "isActive") VALUES (?, ?, ?, ?, ?, ?) RETURNING id').get(
       title, imageUrl, imagesJson, videoUrl || null, link || null, isActive ?? 1
     );
-    res.json({ id: result.lastInsertRowid });
-  });
-  app.put("/api/banners/:id", async (req, res) => {
+    res.json({ id: (row as any).id });
+  }));
+
+  app.put("/api/banners/:id", catchAsync(async (req: any, res: any) => {
     const { title, imageUrl, images, videoUrl, link, isActive } = req.body;
     const imagesJson = images ? JSON.stringify(images) : null;
     await db.prepare('UPDATE banners SET title = ?, "imageUrl" = ?, images = ?, "videoUrl" = ?, link = ?, "isActive" = ? WHERE id = ?').run(
       title, imageUrl, imagesJson, videoUrl || null, link || null, isActive, req.params.id
     );
     res.json({ success: true });
-  });
-  app.delete("/api/banners/:id", async (req, res) => {
+  }));
+
+  app.delete("/api/banners/:id", catchAsync(async (req: any, res: any) => {
     await db.prepare("DELETE FROM banners WHERE id = ?").run(req.params.id);
     res.json({ success: true });
-  });
+  }));
 
   // Settings
-  app.get("/api/settings", async (req, res) => {
+  app.get("/api/settings", catchAsync(async (req: any, res: any) => {
     const settings = await db.prepare("SELECT * FROM settings").all();
     const result: any = {};
     settings.forEach((s: any) => result[s.key] = s.value);
     res.json(result);
-  });
-  app.post("/api/settings", async (req, res) => {
+  }));
+  app.post("/api/settings", catchAsync(async (req: any, res: any) => {
     const updates = req.body;
     if (typeof updates === 'object' && !updates.key) {
       // Bulk update
@@ -137,47 +143,46 @@ async function startServer() {
       await db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value").run(key, String(value));
     }
     res.json({ success: true });
-  });
+  }));
 
   // Geocoding
-  app.get("/api/geocoding/reverse", async (req, res) => {
+  app.get("/api/geocoding/reverse", catchAsync(async (req: any, res: any) => {
     const { lat, lon, lng } = req.query as any;
     const longitude = lon || lng;
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${longitude}&addressdetails=1`, {
-        headers: { 'User-Agent': 'UzbechkaApp/1.0' }
-      });
-      const data = await response.json();
-      res.json({ address: data.display_name, street: data.address?.road || data.address?.suburb || '' });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${longitude}&addressdetails=1`, {
+      headers: { 'User-Agent': 'UzbechkaApp/1.0' }
+    });
+    const data = await response.json();
+    res.json({ address: data.display_name, street: data.address?.road || data.address?.suburb || '' });
+  }));
 
 
   // Shops (Clients registered by Agents)
-  app.get("/api/shops", async (req, res) => {
-    try {
-      const { archived } = req.query;
-      let query = `SELECT s.*, u.name as "clientName", a.name as "agentName" 
-                   FROM shops s 
-                   LEFT JOIN users u ON s."clientId" = u.id
-                   LEFT JOIN users a ON s."agentId" = a.id`;
+  app.get("/api/shops", catchAsync(async (req: any, res: any) => {
+    const { archived, agentId } = req.query;
+    let query = `SELECT s.*, u.name as "clientName", a.name as "agentName" 
+                 FROM shops s 
+                 LEFT JOIN users u ON s."clientId" = u.id
+                 LEFT JOIN users a ON s."agentId" = a.id
+                 WHERE 1=1`;
 
-      if (archived === 'true') {
-        query += ' WHERE s."isArchived" = 1';
-      } else if (archived === 'false') {
-        query += ' WHERE s."isArchived" = 0';
-      }
-
-      const shops = await db.prepare(query).all();
-      res.json(shops);
-    } catch (e: any) {
-      res.json([]);
+    if (archived === 'true') {
+      query += ' AND s."isArchived" = 1';
+    } else if (archived === 'false') {
+      query += ' AND s."isArchived" = 0';
     }
-  });
 
-  app.post("/api/shops", async (req, res) => {
+    if (agentId) {
+      query += ' AND s."agentId" = ?';
+    }
+
+    const shops = agentId 
+      ? await db.prepare(query).all(agentId)
+      : await db.prepare(query).all();
+    res.json(shops);
+  }));
+
+  app.post("/api/shops", catchAsync(async (req: any, res: any) => {
     const { clientId, name, address, latitude, longitude, agentId } = req.body;
     const lat = latitude || req.body.lat;
     const lng = longitude || req.body.lng;
@@ -188,35 +193,27 @@ async function startServer() {
 
     const finalAddress = address || (lat && lng ? `Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Address not specified');
 
-    try {
-      const result = await db.prepare(`
-        INSERT INTO shops (name, address, latitude, longitude, "clientId", "agentId", "isArchived") 
-        VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING id
-      `).run(name, finalAddress, lat || null, lng || null, clientId, agentId || null);
+    const row = await db.prepare(`
+      INSERT INTO shops (name, address, latitude, longitude, "clientId", "agentId", "isArchived") 
+      VALUES (?, ?, ?, ?, ?, ?, 0) RETURNING id
+    `).get(name, finalAddress, lat || null, lng || null, clientId, agentId || null);
 
-      const shop = await db.prepare("SELECT * FROM shops WHERE id = ?").get(result.lastInsertRowid);
-      res.json(shop);
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+    const shop = await db.prepare("SELECT * FROM shops WHERE id = ?").get((row as any).id);
+    res.json(shop);
+  }));
 
-  app.put("/api/shops/:id", async (req, res) => {
+  app.put("/api/shops/:id", catchAsync(async (req: any, res: any) => {
     const { name, address, latitude, longitude, clientId, agentId } = req.body;
     const lat = latitude || req.body.lat;
     const lng = longitude || req.body.lng;
 
-    try {
-      await db.prepare(`
-        UPDATE shops 
-        SET name = ?, address = ?, latitude = ?, longitude = ?, "clientId" = ?, "agentId" = ?
-        WHERE id = ?
-      `).run(name, address, lat || null, lng || null, clientId, agentId || null, req.params.id);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+    await db.prepare(`
+      UPDATE shops 
+      SET name = ?, address = ?, latitude = ?, longitude = ?, "clientId" = ?, "agentId" = ?
+      WHERE id = ?
+    `).run(name, address, lat || null, lng || null, clientId, agentId || null, req.params.id);
+    res.json({ success: true });
+  }));
 
   app.put("/api/shops/:id/archive", async (req, res) => {
     const { isArchived } = req.body;
@@ -228,43 +225,31 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/shops/:id", async (req, res) => {
-    try {
-      await db.prepare("DELETE FROM shops WHERE id = ?").run(req.params.id);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+  app.delete("/api/shops/:id", catchAsync(async (req: any, res: any) => {
+    await db.prepare("DELETE FROM shops WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  }));
 
   // Activity Logs
-  app.get("/api/activity-logs", async (req, res) => {
-    try {
-      const logs = await db.prepare('SELECT * FROM activity_logs ORDER BY "createdAt" DESC LIMIT 100').all();
-      res.json(logs);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+  app.get("/api/activity-logs", catchAsync(async (req: any, res: any) => {
+    const logs = await db.prepare('SELECT * FROM activity_logs ORDER BY "createdAt" DESC LIMIT 100').all();
+    res.json(logs);
+  }));
 
-  app.post("/api/activity-logs", async (req, res) => {
+  app.post("/api/activity-logs", catchAsync(async (req: any, res: any) => {
     const { userId, userName, userRole, action, details } = req.body;
-    try {
-      const result = await db.prepare(`
-        INSERT INTO activity_logs ("userId", "userName", "userRole", action, details) 
-        VALUES (?, ?, ?, ?, ?) RETURNING id
-      `).run(userId, userName, userRole, action, details || null);
+    const row = await db.prepare(`
+      INSERT INTO activity_logs ("userId", "userName", "userRole", action, details) 
+      VALUES (?, ?, ?, ?, ?) RETURNING id
+    `).get(userId, userName, userRole, action, details || null);
 
-      const newLog = await db.prepare("SELECT * FROM activity_logs WHERE id = ?").get(result.lastInsertRowid);
+    const newLog = await db.prepare("SELECT * FROM activity_logs WHERE id = ?").get((row as any).id);
 
-      // Emit via websocket to notify admin instantly
-      io.emit('activity_logged', newLog);
+    // Emit via websocket to notify admin instantly
+    if (newLog) io.emit('activity_logged', newLog);
 
-      res.json(newLog);
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+    res.json(newLog);
+  }));
 
   // Debts
   app.get("/api/debts", async (req, res) => {
@@ -280,26 +265,22 @@ async function startServer() {
     res.json(await db.prepare(query).all());
   });
 
-  app.post("/api/debts", async (req, res) => {
+  app.post("/api/debts", catchAsync(async (req: any, res: any) => {
     const { clientId, amount, dueDate } = req.body;
-    try {
-      const result = await db.prepare(`
-        INSERT INTO debts ("clientId", amount, "dueDate", status) 
-        VALUES (?, ?, ?, 'pending') RETURNING id
-      `).run(clientId, amount, dueDate || null);
+    const row = await db.prepare(`
+      INSERT INTO debts ("clientId", amount, "dueDate", status) 
+      VALUES (?, ?, ?, 'pending') RETURNING id
+    `).get(clientId, amount, dueDate || null);
 
-      const newDebt = await db.prepare('SELECT d.*, u.name as "clientName", u.phone as "clientPhone" FROM debts d JOIN users u ON d."clientId" = u.id WHERE d.id = ?').get(result.lastInsertRowid);
-      res.json(newDebt);
-    } catch (e: any) {
-      res.status(400).json({ error: e.message });
-    }
-  });
+    const newDebt = await db.prepare('SELECT d.*, u.name as "clientName", u.phone as "clientPhone" FROM debts d JOIN users u ON d."clientId" = u.id WHERE d.id = ?').get((row as any).id);
+    res.json(newDebt);
+  }));
 
-  app.patch("/api/debts/:id/pay", async (req, res) => {
+  app.patch("/api/debts/:id/pay", catchAsync(async (req: any, res: any) => {
     const { payerName } = req.body;
     await db.prepare('UPDATE debts SET status = \'paid\', "paidAt" = CURRENT_TIMESTAMP, "payerName" = ? WHERE id = ?').run(payerName || null, req.params.id);
     res.json({ success: true });
-  });
+  }));
 
   app.patch("/api/debts/:id/pay-partial", async (req, res) => {
     const { amountPaid, payerName } = req.body;
@@ -343,158 +324,142 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/debts/:id", async (req, res) => {
-    try {
-      await db.prepare("DELETE FROM debts WHERE id = ?").run(req.params.id);
-      res.json({ success: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+  app.delete("/api/debts/:id", catchAsync(async (req: any, res: any) => {
+    await db.prepare("DELETE FROM debts WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  }));
 
 
   // Auth
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", catchAsync(async (req: any, res: any) => {
     const { phone, password } = req.body;
-    try {
-      if (!phone || !password) return res.status(400).json({ error: "Номер и пароль обязательны" });
+    if (!phone || !password) return res.status(400).json({ error: "Номер и пароль обязательны" });
 
-      const cleanPhone = phone.replace(/\D/g, '');
-      const adminPhone = '998936584455';
-      const adminPass = '1210999';
+    const cleanPhone = phone.replace(/\D/g, '');
+    const adminPhone = '998936584455';
+    const adminPass = '1210999';
 
-      console.log(`[Login Attempt]: phone=${phone}, cleanPhone=${cleanPhone}`);
+    console.log(`[Login Attempt]: phone=${phone}, cleanPhone=${cleanPhone}`);
 
-      // Специальная логика для Супер Админа
-      if (cleanPhone === adminPhone) {
-        let admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`) as any;
-        if (admin) {
-          // Если админ существует, но данные устарели (или пароль сменился)
-          if (password === adminPass && (admin.password !== adminPass || admin.role !== 'admin')) {
-            console.log("[Admin Update]: Updating password/role for admin phone");
-            await db.prepare("UPDATE users SET password = ?, role = 'admin' WHERE id = ?").run(adminPass, admin.id);
-            admin = await db.prepare("SELECT * FROM users WHERE id = ?").get(admin.id) as any;
-          }
-        } else {
-          // Если админа нет - создаем
-          if (password === adminPass) {
-            console.log("[Admin Create]: Creating new admin record");
-            await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Администратор', '+' + adminPhone, adminPass, 'admin');
-            admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`) as any;
-          }
+    // Специальная логика для Супер Админа
+    if (cleanPhone === adminPhone) {
+      let admin = await db.prepare(`
+        SELECT u.*, ac.percent as commission 
+        FROM users u 
+        LEFT JOIN agent_commission ac ON u.id = ac.agent_id 
+        WHERE u.phone LIKE ?
+      `).get(`%${adminPhone}`) as any;
+      if (admin) {
+        // Если админ существует, но данные устарели (или пароль сменился)
+        if (password === adminPass && (admin.password !== adminPass || admin.role !== 'admin')) {
+          console.log("[Admin Update]: Updating password/role for admin phone");
+          await db.prepare("UPDATE users SET password = ?, role = 'admin' WHERE id = ?").run(adminPass, admin.id);
+          admin = await db.prepare("SELECT * FROM users WHERE id = ?").get(admin.id) as any;
         }
-        
-        if (admin && admin.password === password) {
-          console.log("[Admin Success]: Admin logged in");
-          return res.json(admin);
-        }
-      }
-
-      // Обычный вход
-      const user = await db.prepare("SELECT * FROM users WHERE (phone = ? OR phone LIKE ?) AND password = ?").get(phone, `%${cleanPhone}`, password) as any;
-      if (user) {
-        console.log(`[User Success]: ${user.name} logged in`);
-        res.json(user);
       } else {
-        console.log("[Login Failed]: Invalid credentials");
-        res.status(401).json({ error: "Неверный номер или пароль", debug: "VER_1773430000" });
+        // Если админа нет - создаем
+        if (password === adminPass) {
+          console.log("[Admin Create]: Creating new admin record");
+          await db.prepare("INSERT INTO users (name, phone, password, role) VALUES (?, ?, ?, ?)").run('Администратор', '+' + adminPhone, adminPass, 'admin');
+          admin = await db.prepare("SELECT * FROM users WHERE phone LIKE ?").get(`%${adminPhone}`) as any;
+        }
       }
-    } catch (e: any) {
-      console.error("[Login Error]:", e);
-      res.status(500).json({ error: "Ошибка входа", message: e.message });
+      
+      if (admin && admin.password === password) {
+        console.log("[Admin Success]: Admin logged in");
+        // Add commission field even if 0
+        const adminWithComm = { ...admin, commission: admin.commission || 0 };
+        return res.json(adminWithComm);
+      }
     }
-  });
 
-  app.post("/api/auth/register", async (req, res) => {
-    const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
-    try {
-      if (!name || !phone || !password) {
-        return res.status(400).json({ error: "Имя, номер и пароль обязательны" });
-      }
-
-      console.log(`[Registration Attempt]: phone=${phone}, name=${name}, role=${role}`);
-      const cleanPhone = phone.replace(/\D/g, '');
-      
-      // If role is provided in body (from Admin Panel), use it. 
-      // Otherwise, default according to business rules.
-      let finalRole = role || 'client';
-      if (!role) {
-        finalRole = (cleanPhone === '998936584455') ? 'admin' : 'client';
-      }
-      
-      const normalizedPhone = '+' + cleanPhone;
-
-      const insertResult = await db.prepare('INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-        name, normalizedPhone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
-      );
-      
-      const userId = insertResult.lastInsertRowid;
-      console.log(`[Registration DB Result]: lastInsertRowid=${userId}`);
-
-      if (!userId) {
-        throw new Error("Не удалось получить ID созданного пользователя");
-      }
-
-      const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-      if (!user) {
-        throw new Error("Пользователь был создан, но не найден в базе");
-      }
-
-      console.log(`[Registration Success]: user_id=${user.id}, role=${user.role}`);
+    // Обычный вход
+    const user = await db.prepare(`
+      SELECT u.*, ac.percent as commission 
+      FROM users u 
+      LEFT JOIN agent_commission ac ON u.id = ac.agent_id 
+      WHERE (u.phone = ? OR u.phone LIKE ?) AND u.password = ?
+    `).get(phone, `%${cleanPhone}`, password) as any;
+    if (user) {
+      console.log(`[User Success]: ${user.name} logged in`);
       res.json(user);
-    } catch (e: any) {
-      console.error("[Registration Error]:", e);
-      // Проверка на дубликат номера
-      if (e.message?.includes('users_phone_key') || e.code === '23505') {
-        res.status(400).json({ error: "Этот номер телефона уже зарегистрирован" });
-      } else {
-        res.status(500).json({ error: "Ошибка при регистрации", message: e.message });
-      }
+    } else {
+      console.log("[Login Failed]: Invalid credentials");
+      res.status(401).json({ error: "Неверный номер или пароль", debug: "VER_1773430000" });
     }
-  });
+  }));
+
+  app.post("/api/auth/register", catchAsync(async (req: any, res: any) => {
+    const { name, phone, password, role, carType, carPhoto, photo, agentId } = req.body;
+    if (!name || !phone || !password) {
+      return res.status(400).json({ error: "Имя, номер и пароль обязательны" });
+    }
+
+    console.log(`[Registration Attempt]: phone=${phone}, name=${name}, role=${role}`);
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // If role is provided in body (from Admin Panel), use it. 
+    // Otherwise, default according to business rules.
+    let finalRole = role || 'client';
+    if (!role) {
+      finalRole = (cleanPhone === '998936584455') ? 'admin' : 'client';
+    }
+    
+    const normalizedPhone = '+' + cleanPhone;
+
+    const row = await db.prepare('INSERT INTO users (name, phone, password, role, carType, carPhoto, photo, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id').get(
+      name, normalizedPhone, password, finalRole, carType || null, carPhoto || null, photo || null, agentId || null
+    );
+    
+    const userId = (row as any)?.id;
+    console.log(`[Registration DB Result]: lastInsertRowid=${userId}`);
+
+    if (!userId) {
+      throw new Error("Не удалось получить ID созданного пользователя");
+    }
+
+    const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    if (!user) {
+      throw new Error("Пользователь был создан, но не найден в базе");
+    }
+
+    console.log(`[Registration Success]: user_id=${user.id}, role=${user.role}`);
+    res.json(user);
+  }));
 
   // Stats
-  app.get("/api/stats", async (req, res) => {
-    try {
-      let totalRevenue = ((await db.prepare('SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = \'paid\'').get()) as any)?.total || 0;
-      let totalOrders = ((await db.prepare('SELECT COUNT(*) as count FROM orders').get()) as any)?.count || 0;
-      let totalUsers = ((await db.prepare('SELECT COUNT(*) as count FROM users').get()) as any)?.count || 0;
-      let totalProducts = ((await db.prepare('SELECT COUNT(*) as count FROM products').get()) as any)?.count || 0;
-      let salesByCategory = await db.prepare(`
-        SELECT c.name, SUM(oi.price * oi.quantity) as value
-        FROM order_items oi
-        JOIN products p ON oi.productId = p.id
-        JOIN categories c ON p.categoryId = c.id
-        JOIN orders o ON oi.orderId = o.id
-        WHERE o.paymentStatus = 'paid'
-        GROUP BY c.id, c.name
-      `).all();
-      res.json({ revenue: totalRevenue, orders: totalOrders, users: totalUsers, products: totalProducts, salesByCategory });
-    } catch (e: any) {
-      console.error("[Stats Error]:", e);
-      res.status(500).json({ error: e.message });
-    }
-  });
+  app.get("/api/stats", catchAsync(async (req: any, res: any) => {
+    let totalRevenue = ((await db.prepare('SELECT SUM(totalPrice) as total FROM orders WHERE paymentStatus = \'paid\'').get()) as any)?.total || 0;
+    let totalOrders = ((await db.prepare('SELECT COUNT(*) as count FROM orders').get()) as any)?.count || 0;
+    let totalUsers = ((await db.prepare('SELECT COUNT(*) as count FROM users').get()) as any)?.count || 0;
+    let totalProducts = ((await db.prepare('SELECT COUNT(*) as count FROM products').get()) as any)?.count || 0;
+    let salesByCategory = await db.prepare(`
+      SELECT c.name, SUM(oi.price * oi.quantity) as value
+      FROM order_items oi
+      JOIN products p ON oi.productId = p.id
+      JOIN categories c ON p.categoryId = c.id
+      JOIN orders o ON oi.orderId = o.id
+      WHERE o.paymentStatus = 'paid'
+      GROUP BY c.id, c.name
+    `).all();
+    res.json({ revenue: totalRevenue, orders: totalOrders, users: totalUsers, products: totalProducts, salesByCategory });
+  }));
 
   // Telegram
-  app.post("/api/telegram/send", async (req, res) => {
+  app.post("/api/telegram/send", catchAsync(async (req: any, res: any) => {
     const { message } = req.body;
     const botTokenObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_bot_token'").get() as any;
     const chatIdObj = await db.prepare("SELECT value FROM settings WHERE key = 'telegram_chat_id'").get() as any;
     const botToken = botTokenObj?.value;
     const chatId = chatIdObj?.value;
     if (!botToken || !chatId) return res.status(400).json({ error: "Telegram settings missing" });
-    try {
-      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
-      });
-      res.json(await response.json());
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
+    });
+    res.json(await response.json());
+  }));
 
   // Upload (Temporary, will be moved to firebase)
   app.post("/api/upload", upload.single('photo'), (req, res) => {
@@ -563,6 +528,13 @@ async function startServer() {
   // Error logging middleware
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error(`[Global Error] ${req.method} ${req.url}:`, err);
+    
+    // Log to system_errors table
+    db.prepare("INSERT INTO system_errors (message, stack) VALUES (?, ?)").run(
+      err.message || 'Unknown Error',
+      err.stack || ''
+    ).catch(console.error);
+
     res.status(500).json({ 
       error: "Internal Server Error", 
       message: err.message,

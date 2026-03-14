@@ -51,6 +51,9 @@ export const ClientApp: React.FC = () => {
   const { products, categories, orders, banners, createOrder, users, debts, settings, updateUser, theme, setTheme, brandTheme, setBrandTheme } = useData();
   const { user: authUser, logout } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  useEffect(() => {
+    if (language !== 'ru') setLanguage('ru');
+  }, [language]);
 
   const user = users.find(u => u.id === authUser?.id) || authUser;
   const [activeTab, setActiveTab] = useState<'menu' | 'catalog' | 'orders' | 'profile'>('menu');
@@ -254,29 +257,26 @@ export const ClientApp: React.FC = () => {
   return (
     <div className={`min-h-screen pb-24 font-sans transition-all duration-500 ${theme === 'futuristic' ? 'bg-futuristic-bg text-white' : 'bg-uzum-bg text-uzum-text'}`}>
       {/* Header */}
-      <header className={`p-4 sticky top-0 z-30 transition-all ${theme === 'futuristic' ? 'glass-morphism border-b border-white/5 shadow-2xl' : 'bg-white border-b border-uzum-border shadow-sm'}`}>
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <h1 className={`text-2xl font-black tracking-tighter transition-all flex items-center gap-2 ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500 drop-shadow-neon' : 'text-uzum-primary'}`}>
-              <img src="/logo.png" alt="Logo" className="h-8 object-contain" />
-              UZBECHKA <span className="text-sm font-bold text-stone-500 tracking-normal hidden sm:inline">DENAN bekary</span>
+      <header className={`p-3 sticky top-0 z-30 transition-all ${theme === 'futuristic' ? 'glass-morphism border-b border-white/5 shadow-2xl' : 'bg-white border-b border-uzum-border shadow-sm'}`}>
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-1.5">
+            <h1 className={`text-xl font-black tracking-tighter transition-all flex items-center gap-1.5 ${theme === 'futuristic' ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500 drop-shadow-neon' : (brandTheme === 'wildberries' ? 'text-[#cb11ab]' : 'text-uzum-primary')}`}>
+              <img src="/logo.png" alt="Logo" className="h-6 object-contain" />
+              UZBECHKA
             </h1>
-            <div className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-uzum-primary/5 text-uzum-primary border border-uzum-primary/10'}`}>MARKET</div>
+            <div className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${theme === 'futuristic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab]/5 text-[#cb11ab] border border-[#cb11ab]/10' : 'bg-uzum-primary/5 text-uzum-primary border border-uzum-primary/10')}`}>MARKET</div>
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setLanguage(language === 'ru' ? 'uz' : 'ru')} className={`text-xs font-black p-2 rounded-xl transition-all ${theme === 'futuristic' ? 'bg-white/5 text-white/60 hover:text-white' : 'bg-uzum-bg text-uzum-muted hover:text-uzum-primary'}`}>
-              {language === 'ru' ? 'UZ' : 'RU'}
-            </button>
+          <div className="flex items-center gap-2">
             <div className="flex flex-col items-end">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Cabinet</span>
-              <span className="text-xs font-bold truncate max-w-[80px]">{user?.name}</span>
+              <span className={`text-[8px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Cabinet</span>
+              <span className="text-[10px] font-bold truncate max-w-[70px]">{user?.name}</span>
             </div>
-            <div className={`w-10 h-10 rounded-full overflow-hidden border-2 shadow-sm ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-uzum-bg border-white'}`}>
+            <div className={`w-8 h-8 rounded-full overflow-hidden border-2 shadow-sm ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-uzum-bg border-white'}`}>
               {user?.photo ? (
                 <img src={user.photo} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-uzum-muted">
-                  <User size={20} />
+                  <User size={16} />
                 </div>
               )}
             </div>
@@ -285,13 +285,13 @@ export const ClientApp: React.FC = () => {
 
         {/* Search Bar */}
         <div className="relative group">
-          <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${theme === 'futuristic' ? 'text-purple-400/60 group-focus-within:text-purple-400' : 'text-uzum-muted group-focus-within:text-uzum-primary'}`} size={18} />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${theme === 'futuristic' ? 'text-purple-400/60 group-focus-within:text-purple-400' : 'text-uzum-muted group-focus-within:text-uzum-primary'}`} size={16} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Искать в Uzbechka..."
-            className={`w-full pl-12 pr-4 py-3.5 rounded-2xl border-none outline-none transition-all text-sm font-medium ${theme === 'futuristic' ? 'bg-white/5 border border-white/5 focus:bg-white/10 text-white placeholder:text-white/30 focus:shadow-neon focus:border-purple-500/50' : 'bg-uzum-bg focus:bg-white focus:ring-4 focus:ring-uzum-primary/10 border border-transparent focus:border-uzum-primary/20 shadow-inner'}`}
+            className={`w-full pl-10 pr-3 py-2.5 rounded-xl border-none outline-none transition-all text-xs font-medium ${theme === 'futuristic' ? 'bg-white/5 border border-white/5 focus:bg-white/10 text-white placeholder:text-white/30 focus:shadow-neon focus:border-purple-500/50' : 'bg-uzum-bg focus:bg-white focus:ring-4 focus:ring-uzum-primary/10 border border-transparent focus:border-uzum-primary/20 shadow-inner'}`}
           />
         </div>
       </header>
@@ -306,14 +306,14 @@ export const ClientApp: React.FC = () => {
           >
             {/* Banners Carousel */}
             {slides.length > 0 && (
-              <div className="relative h-56 -mx-4 overflow-hidden group">
+              <div className="relative h-[500px] -mx-4 overflow-hidden group">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={slides[currentBanner % slides.length].key}
-                    initial={{ opacity: 0, scale: 1.1 }}
+                    initial={{ opacity: 0, scale: 1.05 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
                     className="absolute inset-0"
                   >
                     <img
@@ -321,12 +321,12 @@ export const ClientApp: React.FC = () => {
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end p-8">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-4">
                       <motion.h2
-                        initial={{ y: 20, opacity: 0 }}
+                        initial={{ y: 10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="text-white text-2xl font-black leading-tight tracking-tight max-w-[80%]"
+                        transition={{ delay: 0.1 }}
+                        className="text-white text-base font-black leading-tight tracking-tight max-w-[85%]"
                       >
                         {slides[currentBanner % slides.length].title}
                       </motion.h2>
@@ -340,7 +340,7 @@ export const ClientApp: React.FC = () => {
                     <button
                       key={i}
                       onClick={() => setCurrentBanner(i)}
-                      className={`h-1 rounded-full transition-all duration-500 ${i === currentBanner % slides.length ? 'w-8 bg-white' : 'w-2 bg-white/40'
+                      className={`h-1 rounded-full transition-all duration-500 ${i === currentBanner % slides.length ? (brandTheme === 'wildberries' ? 'w-8 bg-[#cb11ab]' : 'w-8 bg-white') : 'w-2 bg-white/40'
                         }`}
                     />
                   ))}
@@ -353,10 +353,10 @@ export const ClientApp: React.FC = () => {
             )}
 
             {/* Categories */}
-            <div className="flex gap-2.5 overflow-x-auto pb-4 pt-2 px-1 no-scrollbar">
+            <div className="flex gap-2 overflow-x-auto pb-4 pt-1 px-1 no-scrollbar">
               <button
                 onClick={() => setSelectedCategory(null)}
-                className={`px-6 py-2.5 rounded-2xl whitespace-nowrap text-xs font-black transition-all ${!selectedCategory
+                className={`px-4 py-2 rounded-xl whitespace-nowrap text-[10px] font-black transition-all ${!selectedCategory
                   ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-neon border border-purple-400/20' : 'bg-uzum-primary text-white shadow-premium')
                   : (theme === 'futuristic' ? 'bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-uzum-text border border-uzum-border hover:bg-gray-50')
                   }`}
@@ -367,8 +367,8 @@ export const ClientApp: React.FC = () => {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-6 py-2.5 rounded-2xl whitespace-nowrap text-xs font-black transition-all ${selectedCategory === cat.id
-                    ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-neon border border-purple-400/20' : 'bg-uzum-primary text-white shadow-premium')
+                  className={`px-4 py-2 rounded-xl whitespace-nowrap text-[10px] font-black transition-all ${selectedCategory === cat.id
+                    ? (theme === 'futuristic' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-500 text-white shadow-neon border border-purple-400/20' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white shadow-premium' : 'bg-uzum-primary text-white shadow-premium'))
                     : (theme === 'futuristic' ? 'bg-white/5 text-white/50 border border-white/5 hover:bg-white/10 hover:text-white' : 'bg-white text-uzum-text border border-uzum-border hover:bg-gray-50')
                     }`}
                 >
@@ -378,60 +378,52 @@ export const ClientApp: React.FC = () => {
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2.5">
               {filteredProducts.map(product => (
                 <motion.div
                   key={product.id}
                   layout
-                  className={`rounded-3xl overflow-hidden flex flex-col transition-all duration-300 group ${theme === 'futuristic' ? 'glass-morphism border-white/5 hover:border-purple-500/50 hover:shadow-neon bg-black/20' : 'bg-white shadow-premium hover:shadow-xl border border-transparent hover:border-uzum-primary/10'}`}
+                  className={`rounded-2xl overflow-hidden flex flex-col transition-all duration-300 group ${theme === 'futuristic' ? 'glass-morphism border-white/5 hover:border-purple-500/50 hover:shadow-neon bg-black/20' : (brandTheme === 'wildberries' ? 'bg-white shadow-sm border border-gray-100' : 'bg-white shadow-premium hover:shadow-xl border border-transparent hover:border-uzum-primary/10')}`}
                 >
-                  <div className="relative aspect-[4/5] overflow-hidden cursor-pointer group/card" onClick={() => { setSelectedProduct(product); setCurrentProductImage(0); }}>
+                  <div className={`relative ${brandTheme === 'wildberries' ? 'aspect-[3/4]' : 'aspect-square'} overflow-hidden cursor-pointer group/card`} onClick={() => { setSelectedProduct(product); setCurrentProductImage(0); }}>
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" />
-                    {product.videoUrl && (
-                      <video 
-                        src={product.videoUrl} 
-                        className="video-miniature opacity-0 group-hover/card:opacity-100 transition-opacity duration-500"
-                        autoPlay 
-                        muted 
-                        loop 
-                        playsInline
-                      />
-                    )}
                     {product.discountPrice && (
-                      <div className={`absolute top-3 left-3 z-10 text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest backdrop-blur-md ${theme === 'futuristic' ? 'bg-purple-500/80 text-white border border-purple-400/30' : 'bg-red-500 text-white'}`}>
-                        Sale
+                      <div className={`absolute top-2 left-2 z-10 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest backdrop-blur-md ${theme === 'futuristic' ? 'bg-purple-500/80 text-white border border-purple-400/30' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white' : 'bg-red-500 text-white')}`}>
+                        -{Math.round((1 - product.discountPrice / product.price) * 100)}%
                       </div>
                     )}
                     {(product.rating > 0 || theme === 'futuristic') && (
-                      <div className={`absolute top-2 right-2 z-10 backdrop-blur-md px-2 py-1 rounded-xl flex items-center gap-1.5 ${theme === 'futuristic' ? 'bg-black/60 border border-white/10' : 'bg-white/90 shadow-sm border border-black/5'}`}>
-                        <Star size={10} className="fill-yellow-400 text-yellow-400" />
-                        <span className={`text-[10px] font-black ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{product.rating?.toFixed(1) || '0.0'}</span>
-                        {product.ratingCount !== undefined && (
-                          <span className={`text-[8px] opacity-60 ${theme === 'futuristic' ? 'text-white' : 'text-uzum-muted'}`}>({product.ratingCount})</span>
-                        )}
+                      <div className={`absolute top-1.5 right-1.5 z-10 backdrop-blur-md px-1.5 py-0.5 rounded-lg flex items-center gap-1 ${theme === 'futuristic' ? 'bg-black/60 border border-white/10' : 'bg-white/90 shadow-sm border border-black/5'}`}>
+                        <Star size={8} className="fill-yellow-400 text-yellow-400" />
+                        <span className={`text-[9px] font-black ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{product.rating?.toFixed(1) || '0.0'}</span>
                       </div>
                     )}
                   </div>
-                  <div className="p-4 flex-1 flex flex-col">
-                    <h3 className={`text-[13px] font-medium line-clamp-2 mb-2 h-10 leading-tight transition-colors ${theme === 'futuristic' ? 'text-white/90 group-hover:text-purple-400' : 'text-uzum-text group-hover:text-uzum-primary'}`}>{product.name}</h3>
+                  <div className="p-2.5 flex-1 flex flex-col">
+                    <div className="flex flex-col mb-1.5">
+                      {product.discountPrice ? (
+                        <div className="flex items-baseline gap-1.5">
+                          <span className={`text-sm font-black tracking-tight ${brandTheme === 'wildberries' ? 'text-[#cb11ab]' : (theme === 'futuristic' ? 'text-purple-400' : 'text-uzum-text')}`}>{(product.discountPrice || 0).toLocaleString()} <span className="text-[10px]">сум</span></span>
+                          <span className={`text-[10px] line-through ${theme === 'futuristic' ? 'text-white/30' : 'text-uzum-muted'}`}>{(product.price || 0).toLocaleString()}</span>
+                        </div>
+                      ) : (
+                        <span className={`text-sm font-black tracking-tight ${theme === 'futuristic' ? 'text-white' : (brandTheme === 'wildberries' ? 'text-[#cb11ab]' : 'text-uzum-text')}`}>{(product.price || 0).toLocaleString()} <span className="text-[10px]">сум</span></span>
+                      )}
+                    </div>
 
+                    <h3 className={`text-[10px] font-medium line-clamp-2 mb-1.5 leading-tight transition-colors ${theme === 'futuristic' ? 'text-white/70' : 'text-gray-500'}`}>{product.name}</h3>
+ 
                     <div className="mt-auto">
-                      <div className="flex flex-col mb-3">
-                        {product.discountPrice ? (
-                          <>
-                            <span className={`text-[10px] line-through mb-0.5 ${theme === 'futuristic' ? 'text-white/30' : 'text-uzum-muted'}`}>{(product.price || 0).toLocaleString()} сум</span>
-                            <span className={`text-sm tracking-tight font-black ${theme === 'futuristic' ? 'text-purple-400 drop-shadow-neon' : 'text-uzum-text'}`}>{(product.discountPrice || 0).toLocaleString()} сум</span>
-                          </>
-                        ) : (
-                          <span className={`text-sm tracking-tight font-black ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{(product.price || 0).toLocaleString()} сум</span>
-                        )}
-                      </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                        className={`w-full py-2.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-300 active:scale-95 text-xs font-black uppercase tracking-widest ${theme === 'futuristic' ? 'bg-white/5 text-purple-400 border border-white/5 hover:bg-purple-500 hover:text-white hover:border-purple-400 hover:shadow-neon' : 'bg-uzum-bg text-uzum-primary hover:bg-uzum-primary hover:text-white shadow-sm'}`}
+                        className={`w-full py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-300 active:scale-95 text-[10px] font-black uppercase tracking-wider ${theme === 'futuristic' ? 'bg-white/5 text-purple-400 border border-white/5' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white shadow-sm' : 'bg-uzum-bg text-uzum-primary')}`}
                       >
-                        <Plus size={14} strokeWidth={3} />
-                        {t('add')}
+                        {brandTheme === 'wildberries' ? 'Купить' : (
+                          <>
+                            <Plus size={12} strokeWidth={3} />
+                            {t('add')}
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -601,6 +593,12 @@ export const ClientApp: React.FC = () => {
                   >
                     Ozon
                   </button>
+                  <button
+                    onClick={() => setBrandTheme('wildberries')}
+                    className={`px-2 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all flex-1 ${brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white shadow-md' : 'bg-stone-50 text-stone-400 border border-stone-100 hover:bg-stone-100'}`}
+                  >
+                    WB
+                  </button>
                 </div>
               </div>
             </div>
@@ -639,7 +637,7 @@ export const ClientApp: React.FC = () => {
       </main>
 
       {/* Bottom Nav */}
-      <nav className={`fixed bottom-8 left-6 right-6 px-4 py-4 flex justify-around items-center z-40 transition-all rounded-[2rem] ${theme === 'futuristic' ? 'glass-morphism shadow-2xl' : 'bg-white/95 backdrop-blur-xl border border-uzum-border shadow-premium'}`}>
+      <nav className={`fixed bottom-8 left-6 right-6 px-4 py-4 flex justify-around items-center z-40 transition-all rounded-[2rem] ${theme === 'futuristic' ? 'glass-morphism shadow-2xl' : (brandTheme === 'wildberries' ? 'bg-white shadow-xl border border-gray-100' : 'bg-white/95 backdrop-blur-xl border border-uzum-border shadow-premium')}`}>
         {[
           { id: 'menu', icon: <LayoutDashboard size={20} />, label: t('home') },
           { id: 'cart', icon: <ShoppingCart size={20} />, label: t('cart') },
@@ -658,18 +656,18 @@ export const ClientApp: React.FC = () => {
             className={`flex flex-col items-center justify-center min-w-[64px] transition-all duration-300 relative ${activeTab === item.id ? 'scale-105' : 'opacity-50 hover:opacity-100'}`}
           >
             <div className={`p-2 rounded-2xl transition-all duration-300 ${activeTab === item.id
-              ? (theme === 'futuristic' ? 'text-purple-400 drop-shadow-neon' : 'text-uzum-primary bg-uzum-primary/5')
+              ? (theme === 'futuristic' ? 'text-purple-400 drop-shadow-neon' : (brandTheme === 'wildberries' ? 'text-[#cb11ab] bg-[#cb11ab]/5' : 'text-uzum-primary bg-uzum-primary/5'))
               : (theme === 'futuristic' ? 'text-white/60' : 'text-uzum-muted')
               }`}>
               {item.icon}
             </div>
             {item.id === 'cart' && cart.length > 0 && (
-              <span className={`absolute top-1 right-2.5 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${theme === 'futuristic' ? 'bg-purple-500 text-white border-black shadow-neon' : 'bg-uzum-primary text-white border-white shadow-sm'}`}>
+              <span className={`absolute top-1 right-2.5 text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 ${theme === 'futuristic' ? 'bg-purple-500 text-white border-black shadow-neon' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white border-white shadow-sm' : 'bg-uzum-primary text-white border-white shadow-sm')}`}>
                 {cart.reduce((s, i) => s + i.quantity, 0)}
               </span>
             )}
             <span className={`text-[8px] font-black uppercase tracking-tight mt-1 transition-all ${activeTab === item.id ? 'opacity-100 h-2' : 'opacity-0 h-0'
-              } ${theme === 'futuristic' ? 'text-purple-400' : 'text-uzum-primary'}`}>
+              } ${theme === 'futuristic' ? 'text-purple-400' : (brandTheme === 'wildberries' ? 'text-[#cb11ab]' : 'text-uzum-primary')}`}>
               {item.label}
             </span>
           </button>
@@ -826,7 +824,7 @@ export const ClientApp: React.FC = () => {
                 <button
                   disabled={cart.length === 0}
                   onClick={handleCheckout}
-                  className={`w-full py-4 font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl transition-all active:scale-95 disabled:opacity-50 ${theme === 'futuristic' ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white neon-blue-glow' : 'bg-uzum-primary text-white shadow-uzum-primary/20'}`}
+                  className={`w-full py-4 font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl transition-all active:scale-95 disabled:opacity-50 ${theme === 'futuristic' ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white neon-blue-glow' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white shadow-[#cb11ab]/20' : 'bg-uzum-primary text-white shadow-uzum-primary/20')}`}
                 >
                   {t('confirmOrder')}
                 </button>
@@ -906,9 +904,9 @@ export const ClientApp: React.FC = () => {
 
                 <button
                   onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }}
-                  className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 ${theme === 'futuristic' ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white neon-blue-glow shadow-cyan-500/20' : 'bg-uzum-primary text-white shadow-uzum-primary/20'}`}
+                  className={`w-full py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 ${theme === 'futuristic' ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white neon-blue-glow shadow-cyan-500/20' : (brandTheme === 'wildberries' ? 'bg-[#cb11ab] text-white shadow-[#cb11ab]/20' : 'bg-uzum-primary text-white shadow-uzum-primary/20')}`}
                 >
-                  Добавить в корзину
+                  {t('addToCart')}
                 </button>
               </div>
             </motion.div>

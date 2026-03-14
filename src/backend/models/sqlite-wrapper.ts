@@ -48,10 +48,16 @@ export class SqliteDatabase {
   }
 
   async transaction(callback: () => Promise<void>) {
-    const txn = this.db.transaction(async () => {
+    this.db.exec('BEGIN');
+    try {
       await callback();
-    });
-    await txn();
+      this.db.exec('COMMIT');
+    } catch (e) {
+      if (this.db.inTransaction) {
+        this.db.exec('ROLLBACK');
+      }
+      throw e;
+    }
   }
 
   pragma(query: string) {

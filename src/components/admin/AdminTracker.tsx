@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { Plus } from 'lucide-react';
 import { MapLibreTracker } from '../shared/MapLibreTracker';
 
-export const AdminTracker: React.FC<{
+const AdminTracker: React.FC<{
     setShowAddShop: (val: boolean) => void;
     handleConfirm: (onConfirm: () => void, title: string, message: string) => void;
     theme?: 'light' | 'futuristic';
@@ -80,3 +80,5 @@ export const AdminTracker: React.FC<{
         </motion.div>
     );
 };
+
+export default AdminTracker;

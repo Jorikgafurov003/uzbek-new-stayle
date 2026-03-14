@@ -52,7 +52,7 @@ export const AdminAI: React.FC<AdminAIProps> = ({ stats, recentOrders, products,
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents: `${context}\n\nUser Question: ${userMessage}`,
       });
 

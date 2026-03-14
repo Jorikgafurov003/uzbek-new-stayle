@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { Plus, Store, MapPin, Edit, RotateCcw, Archive, Trash2 } from 'lucide-react';
 import { MapLibreTracker } from '../shared/MapLibreTracker';
 
-export const AdminShops: React.FC<{
+const AdminShops: React.FC<{
     setShowAddShop: (val: boolean) => void;
     setEditingShop: (shop: any) => void;
     handleConfirm: (onConfirm: () => void, title: string, message: string) => void;
@@ -118,3 +118,5 @@ export const AdminShops: React.FC<{
         </motion.div>
     );
 };
+
+export default AdminShops;

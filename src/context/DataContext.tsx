@@ -71,6 +71,8 @@ interface DataContextType {
   speak: (text: string) => void;
   playSound: (type: 'order' | 'message' | 'success' | 'error') => void;
   fixSystemError: (id: number) => Promise<void>;
+  deleteSystemError: (id: number) => Promise<void>;
+  clearSystemErrors: () => Promise<void>;
   analyzeErrors: () => Promise<string>;
   deployUpdate: () => Promise<void>;
   setCommission: (agentId: number, percent: number) => Promise<void>;
@@ -358,6 +360,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     speak("Ошибка исправлена");
   };
 
+  const deleteSystemError = async (id: number) => {
+    await apiFetch(`/api/admin/system-errors/${id}`, { method: 'DELETE' });
+    await refreshData(['errors']);
+  };
+
+  const clearSystemErrors = async () => {
+    await apiFetch('/api/admin/system-errors', { method: 'DELETE' });
+    await refreshData(['errors']);
+  };
+
   const submitReview = async (review: Partial<Review>) => {
     // In a real app, this would be an API call
     const newReview = {
@@ -458,28 +470,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [settings.theme]);
 
   const addProduct = async (product: Partial<Product>) => {
-    await apiFetch('/api/products', {
+    const res = await apiFetch('/api/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
     });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to add product');
+    }
     await logActivity('Создание товара', `Добавлен товар: ${product.name}`);
     await refreshData();
   };
 
   const deleteProduct = async (id: number) => {
     const product = products.find(p => p.id === id);
-    await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete product');
     await logActivity('Удаление товара', `Удален товар: ${product?.name || id}`);
     await refreshData();
   };
 
   const updateProduct = async (id: number, product: Partial<Product>) => {
-    await apiFetch(`/api/products/${id}`, {
+    const res = await apiFetch(`/api/products/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
     });
+    if (!res.ok) throw new Error('Failed to update product');
     await logActivity('Обновление товара', `Обновлен товар: ${product.name}`);
     await refreshData();
   };
@@ -531,7 +549,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteUser = async (id: number) => {
     const userToDelete = users.find(u => u.id === id);
-    await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || errorData.error || 'Failed to delete user');
+    }
     await logActivity('Удаление пользователя', `Удален пользователь: ${userToDelete?.name || id} (${userToDelete?.role})`);
     await refreshData();
   };
@@ -599,11 +621,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = async (id: number, updates: any) => {
-    await apiFetch(`/api/users/${id}`, {
+    const res = await apiFetch(`/api/users/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to update user');
+    }
     await logActivity('Обновление пользователя', `Обновлен пользователь ID: ${id}`);
     await refreshData(['users', 'stats', 'topStats', 'activityLogs']);
   };
@@ -618,20 +644,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addShop = async (shop: any) => {
-    await apiFetch('/api/shops', {
+    const res = await apiFetch('/api/shops', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(shop),
     });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to add shop');
+    }
     await refreshData();
   };
 
   const updateShop = async (id: number, updates: any) => {
-    await apiFetch(`/api/shops/${id}`, {
+    const res = await apiFetch(`/api/shops/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to update shop');
+    }
     await refreshData();
   };
 
@@ -739,7 +773,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     insights, kpis, forecasts, healthLogs, securityAlerts, commissions, salaryConfigs, salaries, shops, accounting, activityLogs, orderNotification, setOrderNotification,
     refreshData, addProduct, updateProduct, deleteProduct, addCategory, deleteCategory, createOrder, updateOrder, deleteOrder, deleteUser, updateUser,
     updateSalaryConfig, createSalary, payDebt, payPartialDebt, increaseDebt, updateDebt, deleteDebt,
-    addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, analyzeErrors,
+    addBanner, addShop, updateShop, deleteShop, archiveShop, updateBanner, deleteBanner, updateSettings, addDebt, updateUserLocation, speak, playSound, fixSystemError, deleteSystemError, clearSystemErrors, analyzeErrors,
     deployUpdate, setCommission, uploadProof, apiFetch, logActivity,
     theme, setTheme, brandTheme, setBrandTheme, reviews, submitReview
   }), [

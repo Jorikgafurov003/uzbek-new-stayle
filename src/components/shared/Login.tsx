@@ -31,7 +31,7 @@ export const Login: React.FC = () => {
 
       if (isRegister && showSmsStep) {
         if (smsCode !== '1234') {
-          setError('Неверный код СМС (используйте 1234)');
+          setError(t('wrongSmsCode'));
           return;
         }
         await register(name, phone, password);
@@ -51,7 +51,7 @@ export const Login: React.FC = () => {
     try {
       await loginWithPhone(phone);
     } catch (err: any) {
-      setError(err.message || 'Ошибка отправки SMS');
+      setError(err.message || t('errorSendingSms'));
     } finally {
       setPhoneAuthLoading(false);
     }
@@ -63,7 +63,7 @@ export const Login: React.FC = () => {
     try {
       await confirmPhoneCode(smsCode);
     } catch (err: any) {
-      setError(err.message || 'Неверный код');
+      setError(err.message || t('invalidCode'));
     }
   };
 
@@ -111,7 +111,7 @@ export const Login: React.FC = () => {
             }`}
           >
             <Mail size={16} />
-            {t('password') ? 'Пароль' : 'Password'}
+            {t('password')}
           </button>
           <button
             onClick={() => { setAuthMode('phone'); setError(''); setShowSmsStep(false); }}
@@ -144,7 +144,7 @@ export const Login: React.FC = () => {
             )}
             {showSmsStep && (
               <div>
-                <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Код из СМС</label>
+                <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('smsCode')}</label>
                 <input
                   type="text"
                   value={smsCode}
@@ -153,7 +153,7 @@ export const Login: React.FC = () => {
                   placeholder="1234"
                   required
                 />
-                <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Введите код 1234 для подтверждения</p>
+                <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">{t('enterSmsCode')}</p>
               </div>
             )}
             {!showSmsStep && (
@@ -189,7 +189,7 @@ export const Login: React.FC = () => {
               type="submit"
               className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4"
             >
-              {showSmsStep ? 'Подтвердить СМС' : isRegister ? t('createAccount') : t('signIn')}
+              {showSmsStep ? t('confirmSms') : isRegister ? t('createAccount') : t('signIn')}
             </button>
           </form>
         )}
@@ -200,7 +200,7 @@ export const Login: React.FC = () => {
             {!phoneConfirmation ? (
               <form onSubmit={handlePhoneSendCode} className="space-y-5">
                 <div>
-                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Номер телефона</label>
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('enterPhoneNumber')}</label>
                   <input
                     type="tel"
                     value={phone}
@@ -209,7 +209,7 @@ export const Login: React.FC = () => {
                     placeholder="+998 90 123 45 67"
                     required
                   />
-                  <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Укажите номер с кодом страны (+998...)</p>
+                  <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">{t('phoneFormatHint')}</p>
                 </div>
 
                 {error && <p className="text-red-500 text-xs text-center font-medium bg-red-50 py-2 rounded-lg">{error}</p>}
@@ -219,13 +219,13 @@ export const Login: React.FC = () => {
                   disabled={phoneAuthLoading}
                   className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4 disabled:opacity-50"
                 >
-                  {phoneAuthLoading ? 'Отправка...' : 'Отправить SMS-код'}
+                  {phoneAuthLoading ? t('sending') : t('sendSmsCode')}
                 </button>
               </form>
             ) : (
               <form onSubmit={handlePhoneVerifyCode} className="space-y-5">
                 <div>
-                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">Код из SMS</label>
+                  <label className="block text-[10px] font-black text-uzum-muted uppercase tracking-widest mb-2 ml-1">{t('smsCode')}</label>
                   <input
                     type="text"
                     value={smsCode}
@@ -234,7 +234,7 @@ export const Login: React.FC = () => {
                     placeholder="123456"
                     required
                   />
-                  <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">Введите 6-значный код из SMS</p>
+                  <p className="text-[10px] text-uzum-muted mt-2 ml-1 font-bold">{t('enterSixDigitCode')}</p>
                 </div>
 
                 {error && <p className="text-red-500 text-xs text-center font-medium bg-red-50 py-2 rounded-lg">{error}</p>}
@@ -243,7 +243,7 @@ export const Login: React.FC = () => {
                   type="submit"
                   className="w-full bg-uzum-primary text-white font-bold py-5 rounded-2xl shadow-xl shadow-uzum-primary/20 hover:shadow-uzum-primary/30 transition-all active:scale-95 text-sm uppercase tracking-widest mt-4"
                 >
-                  Подтвердить
+                  {t('confirm')}
                 </button>
               </form>
             )}
@@ -264,7 +264,7 @@ export const Login: React.FC = () => {
 
         <div className="mt-6 flex items-center justify-between gap-4">
           <div className="h-[1px] bg-[#e2e5eb] flex-1"></div>
-          <span className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">Или войти через</span>
+          <span className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">{t('orSignInWith')}</span>
           <div className="h-[1px] bg-[#e2e5eb] flex-1"></div>
         </div>
 

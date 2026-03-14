@@ -83,7 +83,7 @@ export const CourierApp: React.FC = () => {
       const lastOrder = assignedOrders[assignedOrders.length - 1];
       const notifiedKey = `notified_order_${lastOrder.id}`;
       if (!sessionStorage.getItem(notifiedKey)) {
-        speak(`Вам назначен новый заказ номер ${lastOrder.id}. Пожалуйста, проверьте список доставок.`);
+        speak(`${t('newOrderAssigned')} ${lastOrder.id}.`);
         sessionStorage.setItem(notifiedKey, 'true');
       }
     }
@@ -94,16 +94,16 @@ export const CourierApp: React.FC = () => {
       const lastAvailable = available[available.length - 1];
       const alertedKey = `alerted_available_${lastAvailable.id}`;
       if (!sessionStorage.getItem(alertedKey)) {
-        speak(`Доступен новый заказ для доставки. Проверьте список доступных заказов.`);
+        speak(t('newOrderAvailable'));
         sessionStorage.setItem(alertedKey, 'true');
       }
     }
-  }, [orders, user?.id, myDeliveries.length, availableOrders.length, speak]);
+  }, [orders, user?.id, myDeliveries.length, availableOrders.length, speak, t]);
 
   const acceptOrder = async (orderId: number) => {
     await updateOrder(orderId, { courierId: user?.id });
-    speak(`Вы приняли заказ номер ${orderId}. Пожалуйста, заберите его со склада.`);
-    logActivity('Принял заказ', `Заказ #${orderId}`);
+    speak(`${t('acceptOrder')} ${orderId}.`);
+    logActivity(t('acceptedOrder'), `Заказ #${orderId}`);
   };
 
   const updateStatus = async (orderId: number, status: string) => {
@@ -115,19 +115,19 @@ export const CourierApp: React.FC = () => {
     }
     await updateOrder(orderId, { orderStatus: status });
     if (status === 'on_way') {
-      speak(`Вы начали доставку заказа номер ${orderId}. Пожалуйста, будьте осторожны на дороге.`);
-      logActivity('Начал доставку', `Заказ #${orderId} в пути`);
+      speak(t('deliveryStarted'));
+      logActivity(t('deliveryStarted'), `Заказ #${orderId} в пути`);
     }
   };
 
   const handleHandover = async () => {
     if (!selectedOrder) return;
-    if (!deliveryPhoto) return alert('Пожалуйста, сделайте фотоотчет о доставке');
+    if (!deliveryPhoto) return alert(t('errorPhotoRequired'));
 
     const updates: any = { orderStatus: 'delivered', deliveryPhoto, invoicePhoto };
 
     if (handoverPayment === 'debt') {
-      if (!dueDate) return alert('Пожалуйста, выберите срок оплаты');
+      if (!dueDate) return alert(t('errorDueDateRequired'));
       await addDebt({
         clientId: selectedOrder.clientId,
         orderId: selectedOrder.id,
@@ -143,8 +143,8 @@ export const CourierApp: React.FC = () => {
     }
 
     await updateOrder(selectedOrder.id, updates);
-    speak(`Заказ номер ${selectedOrder.id} успешно доставлен. Оплата: ${handoverPayment === 'debt' ? 'В долг' : handoverPayment === 'cash' ? 'Наличными' : 'Картой'}.`);
-    logActivity('Доставил заказ', `Заказ #${selectedOrder.id}, Оплата: ${handoverPayment}, На сумму: ${selectedOrder.totalPrice}`);
+    speak(`${t('orderDeliveredSuccess')} ${selectedOrder.id}.`);
+    logActivity(t('deliveredOrder'), `Заказ #${selectedOrder.id}, Оплата: ${handoverPayment}, На сумму: ${selectedOrder.totalPrice}`);
     setShowHandoverModal(false);
     setSelectedOrder(null);
   };
@@ -173,7 +173,7 @@ export const CourierApp: React.FC = () => {
       <main className="p-4 max-w-2xl mx-auto">
         {/* Banners Carousel */}
         {banners.filter(b => b.isActive).length > 0 && (
-          <div className="mb-6 relative h-32 rounded-3xl overflow-hidden shadow-sm border border-white/20">
+          <div className="mb-6 relative h-[500px] rounded-3xl overflow-hidden shadow-sm border border-white/20">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentBanner}
@@ -194,7 +194,7 @@ export const CourierApp: React.FC = () => {
         <div className="space-y-4">
           {activeTab === 'deliveries' && availableOrders.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-[10px] font-black text-uzum-muted uppercase tracking-[0.2em] px-2">Доступные заказы ({availableOrders.length})</h3>
+              <h3 className="text-[10px] font-black text-uzum-muted uppercase tracking-[0.2em] px-2">{t('availableOrders')} ({availableOrders.length})</h3>
               {availableOrders.map(order => (
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
@@ -210,15 +210,15 @@ export const CourierApp: React.FC = () => {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">Сумма</p>
-                      <p className="text-lg font-black text-uzum-primary">{(order.totalPrice || 0).toLocaleString()} сум</p>
+                      <p className="text-[10px] font-black text-uzum-muted uppercase tracking-widest">{t('total')}</p>
+                      <p className="text-lg font-black text-uzum-primary">{(order.totalPrice || 0).toLocaleString()} {t('currency')}</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleConfirmAction(() => acceptOrder(order.id), 'Принять заказ', 'Вы уверены, что хотите взять этот заказ?')}
+                    onClick={() => handleConfirmAction(() => acceptOrder(order.id), t('acceptOrder'), t('areYouSure'))}
                     className="w-full py-4 bg-uzum-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-uzum-primary/20"
                   >
-                    Принять заказ
+                    {t('acceptOrder')}
                   </button>
                 </motion.div>
               ))}
@@ -245,9 +245,9 @@ export const CourierApp: React.FC = () => {
                       <p className={`text-[10px] font-medium uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{product.categoryName}</p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>На складе</p>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('inStock')}</p>
                       <p className={`text-lg font-black ${product.stock && product.stock > 0 ? (theme === 'futuristic' ? 'text-cyan-400' : 'text-green-600') : 'text-red-500'}`}>
-                        {product.stock || 0} шт
+                        {product.stock || 0} {t('pcs')}
                       </p>
                     </div>
                   </div>
@@ -281,18 +281,18 @@ export const CourierApp: React.FC = () => {
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-4">
                 <button onClick={() => setActiveTab('profile')} className={`p-2 rounded-xl shadow-sm border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-stone-100 text-stone-600'}`}><ChevronRight className="rotate-180" size={20} /></button>
-                <h2 className={`text-xl font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>Настройки</h2>
+                <h2 className={`text-xl font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{t('settings')}</h2>
               </div>
 
               <div className={`p-6 rounded-[2.5rem] shadow-sm border space-y-6 transition-all ${theme === 'futuristic' ? 'glass-morphism border-white/10' : 'bg-white border-[#e2e5eb]'}`}>
                 <div className={`space-y-4 pb-6 border-b ${theme === 'futuristic' ? 'border-white/5' : 'border-stone-100'}`}>
                   <h3 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-text'}`}>
-                    <Volume2 size={16} /> Звук и Уведомления
+                    <Volume2 size={16} /> {t('soundAndNotifications')}
                   </h3>
                   <div className={`flex justify-between items-center p-4 rounded-2xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
                     <div>
-                      <span className={`font-bold text-sm block ${theme === 'futuristic' ? 'text-white' : ''}`}>Звуковые оповещения</span>
-                      <span className={`text-[10px] uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>О заказах и статусах</span>
+                      <span className={`font-bold text-sm block ${theme === 'futuristic' ? 'text-white' : ''}`}>{t('voiceNotifications')}</span>
+                      <span className={`text-[10px] uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('orderStatusVoice')}</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -303,12 +303,12 @@ export const CourierApp: React.FC = () => {
 
                 <div className={`space-y-4 pb-6 border-b ${theme === 'futuristic' ? 'border-white/5' : 'border-stone-100'}`}>
                   <h3 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-text'}`}>
-                    <MapPin size={16} /> Настройки карты
+                    <MapPin size={16} /> {t('mapSettings')}
                   </h3>
                   <div className={`flex justify-between items-center p-4 rounded-2xl border transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
                     <div>
-                      <span className={`font-bold text-sm block ${theme === 'futuristic' ? 'text-white' : ''}`}>Точность локации</span>
-                      <span className={`text-[10px] uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Высокая (повышенный расход)</span>
+                      <span className={`font-bold text-sm block ${theme === 'futuristic' ? 'text-white' : ''}`}>{t('locationAccuracy')}</span>
+                      <span className={`text-[10px] uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('highAccuracy')}</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" defaultChecked />
@@ -319,19 +319,19 @@ export const CourierApp: React.FC = () => {
 
                 <div className="space-y-4">
                   <h3 className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-text'}`}>
-                    <Navigation size={16} /> Устройство
+                    <Navigation size={16} /> {t('device')}
                   </h3>
                   <div className={`p-4 rounded-2xl border space-y-2 transition-all ${theme === 'futuristic' ? 'bg-white/5 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
                     <div className="flex justify-between">
-                      <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Версия приложения</span>
+                      <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('appVersion')}</span>
                       <span className={`text-xs font-black ${theme === 'futuristic' ? 'text-white' : ''}`}>1.1.0</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Роль</span>
-                      <span className="text-xs font-black uppercase text-uzum-primary">Курьер</span>
+                      <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('role')}</span>
+                      <span className="text-xs font-black uppercase text-uzum-primary">{t('courier')}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Аппарат</span>
+                      <span className={`text-xs font-bold ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('hardware')}</span>
                       <span className={`text-xs font-black truncate max-w-[150px] ${theme === 'futuristic' ? 'text-white' : 'text-stone-600'}`}>{navigator.userAgent.substring(0, 20)}...</span>
                     </div>
                   </div>
@@ -348,11 +348,11 @@ export const CourierApp: React.FC = () => {
             >
               <div className="p-6 space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-black text-uzum-muted uppercase tracking-widest">Заказ #{order.id}</span>
+                  <span className="text-xs font-black text-uzum-muted uppercase tracking-widest">{t('orders')} #{order.id}</span>
                   <div className="flex gap-2">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${order.paymentStatus === 'paid' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
                       }`}>
-                      {order.paymentStatus === 'paid' ? 'Оплачено' : 'Ожидает оплаты'}
+                      {order.paymentStatus === 'paid' ? t('delivered') : t('waitPayment')}
                     </span>
                   </div>
                 </div>
@@ -371,9 +371,9 @@ export const CourierApp: React.FC = () => {
                           <CreditCard size={16} />
                         </div>
                         <div>
-                          <p className="text-[8px] font-black text-red-400 uppercase tracking-widest">Общий долг клиента</p>
+                          <p className="text-[8px] font-black text-red-400 uppercase tracking-widest">{t('totalDebt')} {t('client')}</p>
                           <p className="text-sm font-black text-red-600">
-                            {(debts.filter(d => d.clientId === order.clientId && d.status === 'pending').reduce((sum, d) => sum + d.amount, 0)).toLocaleString()} сум
+                            {(debts.filter(d => d.clientId === order.clientId && d.status === 'pending').reduce((sum, d) => sum + d.amount, 0)).toLocaleString()} {t('currency')}
                           </p>
                         </div>
                       </div>
@@ -392,7 +392,7 @@ export const CourierApp: React.FC = () => {
                   </div>
                   <div className="flex gap-2">
                     <a href={`tel:${order.clientPhone}`} className="flex-1 p-4 bg-uzum-primary text-white rounded-2xl shadow-lg shadow-uzum-primary/20 flex items-center justify-center gap-2">
-                      <Phone size={20} /> Позвонить
+                      <Phone size={20} /> {t('call')}
                     </a>
                     <button
                       onClick={() => setShowMap(showMap === order.id ? null : order.id)}
@@ -421,17 +421,17 @@ export const CourierApp: React.FC = () => {
                 </div>
 
                 <div className="bg-uzum-bg p-4 rounded-2xl space-y-3">
-                  <h4 className="text-[10px] font-black text-uzum-muted uppercase tracking-widest border-b border-white/50 pb-2">Состав заказа</h4>
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm">
-                      <span className="text-uzum-muted font-medium">{item.quantity}x {item.productName}</span>
-                      <span className="font-bold text-uzum-text">{(item.price || 0).toLocaleString()} сум</span>
+                    <h4 className="text-[10px] font-black text-uzum-muted uppercase tracking-widest border-b border-white/50 pb-2">{t('orderComposition')}</h4>
+                    {order.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-sm">
+                        <span className="text-uzum-muted font-medium">{item.quantity}x {item.productName}</span>
+                        <span className="font-bold text-uzum-text">{(item.price || 0).toLocaleString()} {t('currency')}</span>
+                      </div>
+                    ))}
+                    <div className="pt-2 border-t border-white/50 flex justify-between items-center font-bold text-lg text-uzum-primary">
+                      <span>{t('total')}</span>
+                      <span>{(order.totalPrice || 0).toLocaleString()} {t('currency')}</span>
                     </div>
-                  ))}
-                  <div className="pt-2 border-t border-white/50 flex justify-between items-center font-bold text-lg text-uzum-primary">
-                    <span>{t('total')}</span>
-                    <span>{(order.totalPrice || 0).toLocaleString()} сум</span>
-                  </div>
                 </div>
 
                 {activeTab === 'deliveries' && (
@@ -475,10 +475,10 @@ export const CourierApp: React.FC = () => {
       {/* Bottom Navigation */}
       <nav className={`fixed bottom-0 left-0 right-0 p-4 transition-all flex justify-around items-center z-50 ${theme === 'futuristic' ? 'glass-morphism border-t border-white/10 rounded-t-[2.5rem] pb-8' : 'bg-white border-t border-[#e2e5eb]'}`}>
         {[
-          { id: 'deliveries', label: 'Доставка', icon: Truck },
-          { id: 'warehouse', label: 'Склад', icon: Package },
-          { id: 'history', label: 'История', icon: Clock },
-          { id: 'profile', label: 'Профиль', icon: User }
+          { id: 'deliveries', label: t('deliveries'), icon: Truck },
+          { id: 'warehouse', label: t('warehouse'), icon: Package },
+          { id: 'history', label: t('history'), icon: Clock },
+          { id: 'profile', label: t('profile'), icon: User }
         ].map(tab => (
           <button
             key={tab.id}
@@ -516,20 +516,20 @@ export const CourierApp: React.FC = () => {
             >
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className={`text-xl font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>Передача товара</h2>
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Заказ #{selectedOrder?.id}</p>
+                  <h2 className={`text-xl font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white' : 'text-uzum-text'}`}>{t('handoverProduct')}</h2>
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('orders')} #{selectedOrder?.id}</p>
                 </div>
                 <button onClick={() => setShowHandoverModal(false)} className={`p-2 rounded-full transition-all ${theme === 'futuristic' ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-uzum-bg text-uzum-muted'}`}><X size={20} /></button>
               </div>
 
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Способ оплаты</label>
+                  <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('paymentMethodSelect')}</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { id: 'cash', label: 'Наличные', icon: Banknote },
-                      { id: 'card', label: 'Картой', icon: CreditCard },
-                      { id: 'debt', label: 'В долг', icon: Clock }
+                      { id: 'cash', label: t('cash'), icon: Banknote },
+                      { id: 'card', label: t('card'), icon: CreditCard },
+                      { id: 'debt', label: t('debt'), icon: Clock }
                     ].map(method => (
                       <button
                         key={method.id}
@@ -548,7 +548,7 @@ export const CourierApp: React.FC = () => {
 
                 {handoverPayment === 'debt' && (
                   <div className="space-y-3">
-                    <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Срок оплаты (Долг)</label>
+                    <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('repay')} ({t('debt')})</label>
                     <input
                       type="date"
                       value={dueDate}
@@ -560,7 +560,7 @@ export const CourierApp: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-3">
-                    <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Фото доставки</label>
+                    <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('deliveryPhoto')}</label>
                     <div className="relative">
                       {deliveryPhoto ? (
                         <div className={`relative w-full h-32 rounded-2xl overflow-hidden border-2 ${theme === 'futuristic' ? 'border-cyan-500' : 'border-uzum-primary'}`}>
@@ -570,7 +570,7 @@ export const CourierApp: React.FC = () => {
                       ) : (
                         <label className={`flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-stone-200 cursor-pointer ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-stone-50 border-stone-100'}`}>
                           <Plus size={24} className="text-stone-300 mb-1" />
-                          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Фото</p>
+                          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">{t('video')}</p>
                           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -585,7 +585,7 @@ export const CourierApp: React.FC = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>Фото накладной</label>
+                    <label className={`block text-[10px] font-black uppercase tracking-widest ml-1 ${theme === 'futuristic' ? 'text-white/40' : 'text-uzum-muted'}`}>{t('invoicePhoto')}</label>
                     <div className="relative">
                       {invoicePhoto ? (
                         <div className={`relative w-full h-32 rounded-2xl overflow-hidden border-2 ${theme === 'futuristic' ? 'border-cyan-500' : 'border-uzum-primary'}`}>
@@ -595,7 +595,7 @@ export const CourierApp: React.FC = () => {
                       ) : (
                         <label className={`flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-stone-200 cursor-pointer ${theme === 'futuristic' ? 'bg-white/5 border-white/10' : 'bg-stone-50 border-stone-100'}`}>
                           <Plus size={24} className="text-stone-300 mb-1" />
-                          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Накладная</p>
+                          <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">{t('invoice')}</p>
                           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -611,15 +611,15 @@ export const CourierApp: React.FC = () => {
                 </div>
 
                 <div className={`p-4 rounded-2xl border flex justify-between items-center ${theme === 'futuristic' ? 'bg-white/5 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
-                  <span className={`text-xs font-bold uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-500'}`}>К оплате:</span>
-                  <span className={`text-xl font-black ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-primary'}`}>{(selectedOrder?.totalPrice || 0).toLocaleString()} сум</span>
+                  <span className={`text-xs font-bold uppercase tracking-widest ${theme === 'futuristic' ? 'text-white/40' : 'text-stone-500'}`}>{t('toPay')}:</span>
+                  <span className={`text-xl font-black ${theme === 'futuristic' ? 'text-cyan-400' : 'text-uzum-primary'}`}>{(selectedOrder?.totalPrice || 0).toLocaleString()} {t('currency')}</span>
                 </div>
 
                 <button
                   onClick={handleHandover}
                   className={`w-full py-5 text-white rounded-2xl font-bold text-sm shadow-xl uppercase tracking-widest transition-all ${theme === 'futuristic' ? 'bg-gradient-to-r from-cyan-600 to-purple-600 shadow-cyan-500/20' : 'bg-uzum-primary shadow-uzum-primary/20'}`}
                 >
-                  Завершить передачу
+                  {t('finishHandover')}
                 </button>
               </div>
             </motion.div>
