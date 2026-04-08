@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Uzbechka</string>
+    <string name="title_activity_main">Uzbechka</string>
+    <string name="package_name">com.uzbechka.delivery</string>
+    <string name="custom_url_scheme">com.uzbechka.delivery</string>
+</resources>

@@ -1,12 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 import Database from "better-sqlite3";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const apiKey = process.env.GEMINI_API_KEY || "";
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export class AIService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: Database.Database) { }
 
   async generateBusinessInsights() {
+    if (!ai) return null;
     try {
       const sales = this.db.prepare(`
         SELECT p.name, SUM(oi.quantity) as total_qty, SUM(oi.quantity * oi.price) as revenue
@@ -60,9 +62,9 @@ export class AIService {
       });
 
       const data = JSON.parse(response.text || "{}");
-      
+
       const insertInsight = this.db.prepare("INSERT INTO business_insights (summary, recommendation, risk_level) VALUES (?, ?, ?)");
-      
+
       data.recommendations.forEach((rec: any) => {
         insertInsight.run(data.summary, rec.text, rec.riskLevel);
       });
@@ -75,6 +77,7 @@ export class AIService {
   }
 
   async generateProfitForecast() {
+    if (!ai) return [];
     try {
       const history = this.db.prepare(`
         SELECT date(createdAt) as date, SUM(totalPrice) as revenue, COUNT(id) as orders
@@ -107,10 +110,10 @@ export class AIService {
       });
 
       const forecast = JSON.parse(response.text || "[]");
-      
+
       const deleteOld = this.db.prepare("DELETE FROM profit_forecast");
       deleteOld.run();
-      
+
       const insertForecast = this.db.prepare("INSERT INTO profit_forecast (date, expected_orders, expected_revenue, confidence) VALUES (?, ?, ?, ?)");
       forecast.forEach((f: any) => {
         insertForecast.run(f.date, f.expectedOrders, f.expectedRevenue, f.confidence);
@@ -124,6 +127,7 @@ export class AIService {
   }
 
   async analyzeSecurity() {
+    if (!ai) return [];
     try {
       const recentOrders = this.db.prepare(`
         SELECT o.*, u.phone, u.role
@@ -155,7 +159,7 @@ export class AIService {
       });
 
       const alerts = JSON.parse(response.text || "[]");
-      
+
       const insertAlert = this.db.prepare("INSERT INTO security_alerts (user_id, type, risk_score) VALUES (?, ?, ?)");
       alerts.forEach((a: any) => {
         insertAlert.run(a.userId, a.type, a.riskScore);
